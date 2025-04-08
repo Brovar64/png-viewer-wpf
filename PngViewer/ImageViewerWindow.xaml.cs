@@ -42,12 +42,8 @@ namespace PngViewer
             _imageLoader.RunWorkerCompleted += ImageLoader_RunWorkerCompleted;
             _imageLoader.WorkerSupportsCancellation = true;
             
-            // Show loading indicator and start loading
-            loadingIndicator.Visibility = Visibility.Visible;
+            // Start loading
             _imageLoader.RunWorkerAsync(imagePath);
-            
-            // Set up window close event
-            Closing += ImageViewerWindow_Closing;
         }
         
         private void ImageLoader_DoWork(object sender, DoWorkEventArgs e)
@@ -79,8 +75,6 @@ namespace PngViewer
         
         private void ImageLoader_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            loadingIndicator.Visibility = Visibility.Collapsed;
-            
             if (e.Result is Exception ex)
             {
                 MessageBox.Show($"Error loading image: {ex.Message}", "Error", 
