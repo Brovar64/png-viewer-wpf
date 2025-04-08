@@ -5,11 +5,16 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:PngViewer"
         mc:Ignorable="d"
-        Title="Transparent PNG" Height="450" Width="600"
+        Title="Transparent PNG" 
+        Height="Auto" Width="Auto"
+        SizeToContent="WidthAndHeight"
         WindowStartupLocation="CenterScreen"
         Background="Transparent"
         AllowsTransparency="True"
         WindowStyle="None"
+        Topmost="True"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
         KeyDown="Window_KeyDown">
     
