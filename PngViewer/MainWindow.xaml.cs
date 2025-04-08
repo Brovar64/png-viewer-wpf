@@ -34,6 +34,9 @@ namespace PngViewer
         // Store the current selected thumbnail for context menu
         private PngFile _currentContextPngFile;
         
+        // Keep track of open floating images
+        private List<FloatingImage> _floatingImages = new List<FloatingImage>();
+        
         // Placeholder for failed thumbnails
         private static BitmapImage _placeholderImage;
         
@@ -532,9 +535,30 @@ namespace PngViewer
             {
                 try
                 {
-                    // Open in transparent viewer
-                    var transparentViewer = new TransparentImageWindow(_currentContextPngFile.FilePath);
-                    transparentViewer.Show();
+                    // Create a pure floating image with transparency
+                    var floatingImage = new FloatingImage(_currentContextPngFile.FilePath);
+                    _floatingImages.Add(floatingImage);
+                    
+                    // Register for disposal when the floating image closes
+                    var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                    timer.Tick += (s, args) =>
+                    {
+                        // Check if any floating images have been closed and remove them from the list
+                        for (int i = _floatingImages.Count - 1; i >= 0; i--)
+                        {
+                            if (_floatingImages[i].IsDisposed)
+                            {
+                                _floatingImages.RemoveAt(i);
+                            }
+                        }
+                        
+                        // If all images are gone, stop the timer
+                        if (_floatingImages.Count == 0)
+                        {
+                            timer.Stop();
+                        }
+                    };
+                    timer.Start();
                 }
                 catch (Exception ex)
                 {
@@ -578,6 +602,13 @@ namespace PngViewer
                 
                 // Clear collections
                 _pngFiles.Clear();
+                
+                // Dispose any open floating images
+                foreach (var floatingImage in _floatingImages)
+                {
+                    floatingImage.Dispose();
+                }
+                _floatingImages.Clear();
             }
             
             _disposed = true;
