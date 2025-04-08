@@ -9,12 +9,12 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using System.Windows.Forms;
 using System.ComponentModel;
-using System.Runtime.InteropServices;
 
 namespace PngViewer
 {
@@ -27,7 +27,6 @@ namespace PngViewer
         private CancellationTokenSource _cts;
         private readonly DispatcherTimer _memoryMonitorTimer;
         private bool _disposed = false;
-        private int _visibleItemsCount = 0;
         private int _lastLoadedIndex = 0;
         
         public MainWindow()
@@ -355,9 +354,14 @@ namespace PngViewer
         // Helper method to find a visual child of a specific type
         private static T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
         {
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            if (parent == null)
+                return null;
+                
+            int childCount = System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent);
+                
+            for (int i = 0; i < childCount; i++)
             {
-                var child = VisualTreeHelper.GetChild(parent, i);
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
                 
                 if (child is T result)
                     return result;
