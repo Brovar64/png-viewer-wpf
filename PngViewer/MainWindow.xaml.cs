@@ -47,6 +47,9 @@ namespace PngViewer
             _memoryMonitorTimer.Start();
             
             ImageGrid.ItemsSource = _pngFiles;
+            
+            // Initialize _cts to avoid null reference
+            _cts = new CancellationTokenSource();
         }
 
         private void MemoryMonitor_Tick(object sender, EventArgs e)
@@ -111,6 +114,12 @@ namespace PngViewer
             
             try
             {
+                if (!Directory.Exists(directoryPath))
+                {
+                    e.Result = new List<PngFile>();
+                    return;
+                }
+                
                 var files = Directory.GetFiles(directoryPath, "*.png", SearchOption.TopDirectoryOnly);
                 int count = 0;
                 int total = files.Length;
@@ -218,39 +227,52 @@ namespace PngViewer
             var scrollViewer = FindVisualChild<ScrollViewer>(ImageGrid);
             if (scrollViewer == null)
                 return;
-                
-            // Get visible items and load thumbnails
-            Task.Run(() => 
+            
+            try
             {
-                int startIndex = Math.Max(0, _lastLoadedIndex - 5);
-                int endIndex = Math.Min(_pngFiles.Count - 1, _lastLoadedIndex + 20);
-                
-                for (int i = startIndex; i <= endIndex; i++)
+                // Get visible items and load thumbnails
+                Task.Run(() => 
                 {
-                    if (_cts.Token.IsCancellationRequested)
+                    if (_cts == null || _cts.Token.IsCancellationRequested)
                         return;
                         
-                    var file = _pngFiles[i];
-                    if (file.Thumbnail == null)
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            try
-                            {
-                                file.Thumbnail = CreateThumbnail(file.FilePath);
-                                _lastLoadedIndex = i;
-                            }
-                            catch (Exception ex)
-                            {
-                                Debug.WriteLine($"Error loading thumbnail: {ex.Message}");
-                            }
-                        });
-                    }
+                    int startIndex = Math.Max(0, _lastLoadedIndex - 5);
+                    int endIndex = Math.Min(_pngFiles.Count - 1, _lastLoadedIndex + 20);
                     
-                    // Brief pause to prevent UI freeze
-                    Thread.Sleep(10);
-                }
-            }, _cts.Token);
+                    for (int i = startIndex; i <= endIndex; i++)
+                    {
+                        if (_cts == null || _cts.Token.IsCancellationRequested)
+                            return;
+                            
+                        if (i < 0 || i >= _pngFiles.Count)
+                            continue;
+                            
+                        var file = _pngFiles[i];
+                        if (file.Thumbnail == null)
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                try
+                                {
+                                    file.Thumbnail = CreateThumbnail(file.FilePath);
+                                    _lastLoadedIndex = i;
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.WriteLine($"Error loading thumbnail: {ex.Message}");
+                                }
+                            });
+                        }
+                        
+                        // Brief pause to prevent UI freeze
+                        Thread.Sleep(10);
+                    }
+                }, _cts.Token);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in LoadVisibleThumbnails: {ex.Message}");
+            }
         }
         
         private BitmapImage CreateThumbnail(string filePath)
@@ -263,6 +285,9 @@ namespace PngViewer
             
             try
             {
+                if (!File.Exists(filePath))
+                    return null;
+                    
                 // Create a small, memory-efficient thumbnail
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
@@ -305,10 +330,26 @@ namespace PngViewer
             var image = sender as System.Windows.Controls.Image;
             if (image != null && image.DataContext is PngFile pngFile)
             {
-                // Open the image in a new window
-                var imageViewer = new ImageViewerWindow(pngFile.FilePath);
-                imageViewer.Owner = this;
-                imageViewer.Show();
+                try 
+                {
+                    if (File.Exists(pngFile.FilePath))
+                    {
+                        // Open the image in a new window
+                        var imageViewer = new ImageViewerWindow(pngFile.FilePath);
+                        imageViewer.Owner = this;
+                        imageViewer.Show();
+                    }
+                    else
+                    {
+                        System.Windows.MessageBox.Show($"File not found: {pngFile.FilePath}", "Error", 
+                            MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Windows.MessageBox.Show($"Error opening image: {ex.Message}", "Error", 
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
         
