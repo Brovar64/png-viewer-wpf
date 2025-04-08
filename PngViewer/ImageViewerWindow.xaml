@@ -49,16 +49,16 @@
         <!-- Toolbar -->
         <Border Grid.Row="0" Background="#F8F8F8" BorderBrush="#DDDDDD" BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal" Margin="8">
-            <Button x:Name="btnRotateLeft" Content="Rotate Left" Click="btnRotateLeft_Click" Style="{StaticResource ToolbarButtonStyle}"/>
-            <Button x:Name="btnRotateRight" Content="Rotate Right" Click="btnRotateRight_Click" Style="{StaticResource ToolbarButtonStyle}"/>
-            <Separator Margin="5,0" Width="1" Background="#DDDDDD" />
-            <Button x:Name="btnZoomIn" Content="Zoom In" Click="btnZoomIn_Click" Style="{StaticResource ToolbarButtonStyle}"/>
-            <Button x:Name="btnZoomOut" Content="Zoom Out" Click="btnZoomOut_Click" Style="{StaticResource ToolbarButtonStyle}"/>
-            <Button x:Name="btnResetZoom" Content="Reset Zoom" Click="btnResetZoom_Click" Style="{StaticResource ToolbarButtonStyle}"/>
-            <Separator Margin="5,0" Width="1" Background="#DDDDDD" />
-            <Button x:Name="btnCrop" Content="Crop" Click="btnCrop_Click" Style="{StaticResource ToolbarButtonStyle}"/>
-            <Separator Margin="5,0" Width="1" Background="#DDDDDD" />
-            <Button x:Name="btnSave" Content="Save As..." Click="btnSave_Click" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Button x:Name="btnRotateLeft" Content="Rotate Left" Click="btnRotateLeft_Click" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Button x:Name="btnRotateRight" Content="Rotate Right" Click="btnRotateRight_Click" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Separator Margin="5,0" Width="1" Background="#DDDDDD" />
+                <Button x:Name="btnZoomIn" Content="Zoom In" Click="btnZoomIn_Click" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Button x:Name="btnZoomOut" Content="Zoom Out" Click="btnZoomOut_Click" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Button x:Name="btnResetZoom" Content="Reset Zoom" Click="btnResetZoom_Click" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Separator Margin="5,0" Width="1" Background="#DDDDDD" />
+                <Button x:Name="btnCrop" Content="Crop" Click="btnCrop_Click" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Separator Margin="5,0" Width="1" Background="#DDDDDD" />
+                <Button x:Name="btnSave" Content="Save As..." Click="btnSave_Click" Style="{StaticResource ToolbarButtonStyle}"/>
             </StackPanel>
         </Border>
         
