@@ -15,13 +15,22 @@
         Topmost="True"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
+        BorderThickness="0"
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
         KeyDown="Window_KeyDown">
     
-    <Grid>
-        <Image x:Name="mainImage" Stretch="None" 
-               RenderOptions.BitmapScalingMode="HighQuality"
-               SnapsToDevicePixels="True" 
-               UseLayoutRounding="True"/>
-    </Grid>
+    <!-- No padding, margins, or borders -->
+    <Window.Template>
+        <ControlTemplate TargetType="{x:Type Window}">
+            <ContentPresenter Margin="0" Content="{TemplateBinding Content}" />
+        </ControlTemplate>
+    </Window.Template>
+    
+    <!-- The only element is the image itself - no other UI elements -->
+    <Image x:Name="mainImage" 
+           Stretch="None" 
+           Margin="0"
+           RenderOptions.BitmapScalingMode="HighQuality"
+           SnapsToDevicePixels="True" 
+           UseLayoutRounding="True"/>
 </Window>
