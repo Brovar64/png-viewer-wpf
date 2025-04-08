@@ -55,7 +55,7 @@
                                 RelativeSource={RelativeSource AncestorType=ScrollContentPresenter}}"/>
                         </VirtualizingStackPanel>
                     </ControlTemplate>
-                </ItemsControl.ItemsPanel>
+                </ItemsControl.Template>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Border Margin="5" Background="White" BorderBrush="#DDDDDD" BorderThickness="1" 
