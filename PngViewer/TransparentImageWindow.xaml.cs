@@ -8,6 +8,7 @@ using System.ComponentModel;
 using System.Windows.Interop;
 using System.Runtime.InteropServices;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace PngViewer
 {
@@ -20,7 +21,11 @@ namespace PngViewer
         
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
+        private const int GWL_EXSTYLE = -20;
         private const int WS_SYSMENU = 0x80000;
+        private const int WS_EX_TOOLWINDOW = 0x00000080;
+        private const int WS_CAPTION = 0x00C00000;
+        private const int WS_BORDER = 0x00800000;
         
         [DllImport("user32.dll", SetLastError = true)]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -48,32 +53,31 @@ namespace PngViewer
 
         private void TransparentImageWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            // Remove system menu (close, maximize, etc. buttons) from non-client area
             var hwnd = new WindowInteropHelper(this).Handle;
-            var style = GetWindowLong(hwnd, GWL_STYLE);
-            SetWindowLong(hwnd, GWL_STYLE, style & ~WS_SYSMENU);
             
-            // Make the window click-through except for the actual image pixels
-            if (_originalImage != null)
+            // Remove system menu, caption and borders
+            var style = GetWindowLong(hwnd, GWL_STYLE);
+            SetWindowLong(hwnd, GWL_STYLE, style & ~(WS_SYSMENU | WS_CAPTION | WS_BORDER));
+            
+            // Make it a tool window so it doesn't show in taskbar or Alt+Tab
+            var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+            SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
+            
+            // Ensure window is transparent
+            this.WindowStyle = WindowStyle.None;
+            this.Background = Brushes.Transparent;
+            this.AllowsTransparency = true;
+            
+            // Use a timer to allow the window to fully render before removing borders
+            DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(10) };
+            timer.Tick += (s, args) => 
             {
-                SetClickThrough();
-            }
-        }
-
-        private void SetClickThrough()
-        {
-            // Create a region based on the image's non-transparent pixels
-            // This allows click-through for transparent areas
-            try
-            {
-                // We need a more advanced solution for pixel-perfect click-through,
-                // but for now we'll just make the entire window draggable
-                // The Win32 solutions involving SetWindowRgn are more complex
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to set click-through region: {ex.Message}");
-            }
+                timer.Stop();
+                
+                // Apply window style changes again to ensure they stick
+                SetWindowLong(hwnd, GWL_STYLE, style & ~(WS_SYSMENU | WS_CAPTION | WS_BORDER));
+            };
+            timer.Start();
         }
         
         private void ImageLoader_DoWork(object sender, DoWorkEventArgs e)
@@ -116,11 +120,12 @@ namespace PngViewer
                 mainImage.Width = _originalImage.PixelWidth;
                 mainImage.Height = _originalImage.PixelHeight;
                 
+                // Update window size to exactly match the image
+                Width = _originalImage.PixelWidth;
+                Height = _originalImage.PixelHeight;
+                
                 // Ensure window is centered on screen
                 CenterWindowOnScreen();
-                
-                // Try to make transparent areas click-through
-                SetClickThrough();
             }
         }
         
