@@ -79,7 +79,7 @@ namespace PngViewer
                 var textFormat = new FormattedText(
                     "No Preview",
                     System.Globalization.CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight,
+                    System.Windows.FlowDirection.LeftToRight,
                     new Typeface("Segoe UI"),
                     14,
                     Brushes.DarkGray,
