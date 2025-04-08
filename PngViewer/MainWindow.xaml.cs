@@ -482,7 +482,7 @@ namespace PngViewer
                 {
                     if (File.Exists(pngFile.FilePath))
                     {
-                        // Use WPF-based TransparentImageWindow instead of Windows Forms based FloatingImage
+                        // Use TransparentImageWindow for the default click behavior
                         var transparentWindow = new TransparentImageWindow(pngFile.FilePath);
                         _transparentWindows.Add(transparentWindow);
                         
@@ -544,7 +544,7 @@ namespace PngViewer
             {
                 try
                 {
-                    // Use WPF-based TransparentImageWindow instead of Windows Forms-based FloatingImage
+                    // Use TransparentImageWindow for opening images
                     var transparentWindow = new TransparentImageWindow(_currentContextPngFile.FilePath);
                     _transparentWindows.Add(transparentWindow);
                     
