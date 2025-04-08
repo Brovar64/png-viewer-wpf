@@ -23,10 +23,7 @@ namespace PngViewer
         private bool _isCropping = false;
         private Point _cropStartPoint;
         private bool _disposed = false;
-        private BackgroundWorker _imageLoader;
-
-        // Explicitly declaring loadingIndicator
-        private ProgressBar loadingIndicator;
+        private readonly BackgroundWorker _imageLoader = new BackgroundWorker();
 
         // Constants for zoom sensitivity
         private const double ZOOM_FACTOR_STEP = 0.1;
@@ -37,23 +34,16 @@ namespace PngViewer
         {
             InitializeComponent();
             
-            // Ensure loadingIndicator is properly initialized
-            loadingIndicator = this.FindName("loadingIndicator") as ProgressBar;
-            
             _imagePath = imagePath;
             Title = $"PNG Viewer - {Path.GetFileName(imagePath)}";
             
             // Configure background loader
-            _imageLoader = new BackgroundWorker();
             _imageLoader.DoWork += ImageLoader_DoWork;
             _imageLoader.RunWorkerCompleted += ImageLoader_RunWorkerCompleted;
             _imageLoader.WorkerSupportsCancellation = true;
             
             // Show loading indicator and start loading
-            if (loadingIndicator != null)
-            {
-                loadingIndicator.Visibility = Visibility.Visible;
-            }
+            loadingIndicator.Visibility = Visibility.Visible;
             _imageLoader.RunWorkerAsync(imagePath);
             
             // Set up window close event
@@ -89,10 +79,7 @@ namespace PngViewer
         
         private void ImageLoader_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            if (loadingIndicator != null)
-            {
-                loadingIndicator.Visibility = Visibility.Collapsed;
-            }
+            loadingIndicator.Visibility = Visibility.Collapsed;
             
             if (e.Result is Exception ex)
             {
@@ -341,6 +328,12 @@ namespace PngViewer
                 double width = cropBorder.Width / _zoomFactor;
                 double height = cropBorder.Height / _zoomFactor;
                 
+                // Ensure coordinates are within image bounds
+                left = Math.Max(0, Math.Min(left, _transformedImage.PixelWidth - 1));
+                top = Math.Max(0, Math.Min(top, _transformedImage.PixelHeight - 1));
+                width = Math.Min(width, _transformedImage.PixelWidth - left);
+                height = Math.Min(height, _transformedImage.PixelHeight - top);
+                
                 // Create a cropped bitmap
                 var cropRect = new Int32Rect(
                     (int)left, 
@@ -427,7 +420,7 @@ namespace PngViewer
                 e.Handled = true;
             }
         }
-
+        
         private void ImageViewerWindow_Closing(object sender, CancelEventArgs e)
         {
             Dispose();
@@ -441,37 +434,32 @@ namespace PngViewer
         
         protected virtual void Dispose(bool disposing)
         {
-            if (!_disposed)
+            if (_disposed)
+                return;
+                
+            if (disposing)
             {
-                if (disposing)
+                // Cancel any ongoing operations
+                if (_imageLoader.IsBusy)
                 {
-                    // Cancel any ongoing operations
-                    if (_imageLoader != null && _imageLoader.IsBusy)
-                    {
-                        _imageLoader.CancelAsync();
-                    }
-                    
-                    // Dispose image resources
-                    ReleaseImage(ref _originalImage);
-                    
-                    if (_transformedImage != _originalImage)
-                    {
-                        ReleaseImage(ref _transformedImage);
-                    }
-                    
-                    // Clear event handlers
-                    Closing -= ImageViewerWindow_Closing;
-                    
-                    if (_imageLoader != null)
-                    {
-                        _imageLoader.DoWork -= ImageLoader_DoWork;
-                        _imageLoader.RunWorkerCompleted -= ImageLoader_RunWorkerCompleted;
-                        _imageLoader.Dispose();
-                    }
+                    _imageLoader.CancelAsync();
                 }
                 
-                _disposed = true;
+                // Dispose image resources
+                ReleaseImage(ref _originalImage);
+                
+                if (_transformedImage != _originalImage)
+                {
+                    ReleaseImage(ref _transformedImage);
+                }
+                
+                // Clear event handlers
+                Closing -= ImageViewerWindow_Closing;
+                _imageLoader.DoWork -= ImageLoader_DoWork;
+                _imageLoader.RunWorkerCompleted -= ImageLoader_RunWorkerCompleted;
             }
+            
+            _disposed = true;
         }
         
         private void ReleaseImage(ref BitmapSource image)
