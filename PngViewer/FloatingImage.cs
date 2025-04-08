@@ -35,8 +35,9 @@ namespace PngViewer
                 ShowInTaskbar = false,
                 TopMost = true,
                 StartPosition = FormStartPosition.CenterScreen,
-                BackColor = System.Drawing.Color.Transparent,
-                TransparencyKey = System.Drawing.Color.Transparent,
+                // Use a very unlikely color to be in the image for transparency
+                BackColor = System.Drawing.Color.FromArgb(1, 2, 3),
+                TransparencyKey = System.Drawing.Color.FromArgb(1, 2, 3),
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink
             };
@@ -45,7 +46,7 @@ namespace PngViewer
             _pictureBox = new System.Windows.Forms.PictureBox
             {
                 SizeMode = PictureBoxSizeMode.AutoSize,
-                BackColor = System.Drawing.Color.Transparent,
+                BackColor = System.Drawing.Color.FromArgb(1, 2, 3),
                 Dock = DockStyle.None,
                 Margin = new System.Windows.Forms.Padding(0)
             };
