@@ -7,6 +7,13 @@
         mc:Ignorable="d"
         Title="PNG Viewer" Height="650" Width="1000"
         Closing="Window_Closing">
+    <Window.Resources>
+        <ContextMenu x:Key="ThumbnailContextMenu">
+            <MenuItem Header="Open in Viewer" Click="MenuItemOpenViewer_Click"/>
+            <MenuItem Header="Open as Transparent Image" Click="MenuItemOpenTransparent_Click"/>
+        </ContextMenu>
+    </Window.Resources>
+    
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -48,7 +55,7 @@
                                 RelativeSource={RelativeSource AncestorType=ScrollContentPresenter}}"/>
                         </VirtualizingStackPanel>
                     </ControlTemplate>
-                </ItemsControl.Template>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Border Margin="5" Background="White" BorderBrush="#DDDDDD" BorderThickness="1" 
@@ -64,7 +71,9 @@
                                 
                                 <Border Grid.Row="0" Background="#F5F5F5">
                                     <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="10" 
-                                           MouseLeftButtonDown="Image_MouseLeftButtonDown"/>
+                                           MouseLeftButtonDown="Image_MouseLeftButtonDown"
+                                           ContextMenu="{StaticResource ThumbnailContextMenu}"
+                                           MouseRightButtonDown="Image_MouseRightButtonDown"/>
                                 </Border>
                                 
                                 <StackPanel Grid.Row="1" Margin="10,5">
