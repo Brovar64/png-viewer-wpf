@@ -36,6 +36,7 @@ namespace PngViewer
         
         // Keep track of open floating images
         private List<FloatingImage> _floatingImages = new List<FloatingImage>();
+        private List<TransparentImageWindow> _transparentWindows = new List<TransparentImageWindow>();
         
         // Placeholder for failed thumbnails
         private static BitmapImage _placeholderImage;
@@ -481,30 +482,18 @@ namespace PngViewer
                 {
                     if (File.Exists(pngFile.FilePath))
                     {
-                        // Open as transparent image instead of standard viewer
-                        var floatingImage = new FloatingImage(pngFile.FilePath);
-                        _floatingImages.Add(floatingImage);
+                        // Use WPF-based TransparentImageWindow instead of Windows Forms based FloatingImage
+                        var transparentWindow = new TransparentImageWindow(pngFile.FilePath);
+                        _transparentWindows.Add(transparentWindow);
                         
-                        // Register for disposal when the floating image closes
-                        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-                        timer.Tick += (s, args) =>
+                        // Set up cleanup when the window is closed
+                        transparentWindow.Closed += (s, args) =>
                         {
-                            // Check if any floating images have been closed and remove them from the list
-                            for (int i = _floatingImages.Count - 1; i >= 0; i--)
-                            {
-                                if (_floatingImages[i].IsDisposed)
-                                {
-                                    _floatingImages.RemoveAt(i);
-                                }
-                            }
-                            
-                            // If all images are gone, stop the timer
-                            if (_floatingImages.Count == 0)
-                            {
-                                timer.Stop();
-                            }
+                            _transparentWindows.Remove(transparentWindow);
+                            transparentWindow.Dispose();
                         };
-                        timer.Start();
+                        
+                        transparentWindow.Show();
                     }
                     else
                     {
@@ -555,30 +544,18 @@ namespace PngViewer
             {
                 try
                 {
-                    // Create a pure floating image with transparency
-                    var floatingImage = new FloatingImage(_currentContextPngFile.FilePath);
-                    _floatingImages.Add(floatingImage);
+                    // Use WPF-based TransparentImageWindow instead of Windows Forms-based FloatingImage
+                    var transparentWindow = new TransparentImageWindow(_currentContextPngFile.FilePath);
+                    _transparentWindows.Add(transparentWindow);
                     
-                    // Register for disposal when the floating image closes
-                    var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-                    timer.Tick += (s, args) =>
+                    // Set up cleanup when the window is closed
+                    transparentWindow.Closed += (s, args) =>
                     {
-                        // Check if any floating images have been closed and remove them from the list
-                        for (int i = _floatingImages.Count - 1; i >= 0; i--)
-                        {
-                            if (_floatingImages[i].IsDisposed)
-                            {
-                                _floatingImages.RemoveAt(i);
-                            }
-                        }
-                        
-                        // If all images are gone, stop the timer
-                        if (_floatingImages.Count == 0)
-                        {
-                            timer.Stop();
-                        }
+                        _transparentWindows.Remove(transparentWindow);
+                        transparentWindow.Dispose();
                     };
-                    timer.Start();
+                    
+                    transparentWindow.Show();
                 }
                 catch (Exception ex)
                 {
@@ -629,6 +606,14 @@ namespace PngViewer
                     floatingImage.Dispose();
                 }
                 _floatingImages.Clear();
+                
+                // Dispose any open transparent windows
+                foreach (var window in _transparentWindows)
+                {
+                    window.Close();
+                    window.Dispose();
+                }
+                _transparentWindows.Clear();
             }
             
             _disposed = true;
