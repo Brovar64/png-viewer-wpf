@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:PngViewer"
         mc:Ignorable="d"
-        Title="PNG Viewer" Height="650" Width="1000">
+        Title="PNG Viewer" Height="650" Width="1000"
+        Closing="Window_Closing">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -21,18 +22,33 @@
         </StackPanel>
         
         <Border Grid.Row="1" BorderBrush="#DDDDDD" BorderThickness="0,1,0,0" Margin="10,0">
-            <StackPanel Orientation="Horizontal" Margin="0,5">
+            <Grid Margin="0,5">
                 <TextBlock x:Name="txtFileCount" Text="0 PNG files found" VerticalAlignment="Center"/>
-            </StackPanel>
+                <TextBlock x:Name="txtMemoryUsage" Text="Memory: 0 MB" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </Grid>
         </Border>
         
-        <ScrollViewer Grid.Row="2" Margin="10" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="2" Margin="10" VerticalScrollBarVisibility="Auto" 
+                      ScrollChanged="ScrollViewer_ScrollChanged">
             <ItemsControl x:Name="ImageGrid">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <WrapPanel/>
+                        <VirtualizingStackPanel Orientation="Horizontal" IsItemsHost="True" 
+                                             VirtualizationMode="Recycling"
+                                             IsVirtualizing="True" 
+                                             VirtualizingPanel.CacheLength="1,2"
+                                             VirtualizingPanel.CacheLengthUnit="Page"/>
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
+                <ItemsControl.Template>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <VirtualizingStackPanel IsVirtualizing="True" 
+                                            VirtualizationMode="Recycling">
+                            <WrapPanel Orientation="Horizontal" IsItemsHost="True" Width="{Binding (FrameworkElement.ActualWidth), 
+                                RelativeSource={RelativeSource AncestorType=ScrollContentPresenter}}"/>
+                        </VirtualizingStackPanel>
+                    </ControlTemplate>
+                </ItemsControl.Template>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Border Margin="5" Background="White" BorderBrush="#DDDDDD" BorderThickness="1" 
@@ -47,7 +63,7 @@
                                 </Grid.RowDefinitions>
                                 
                                 <Border Grid.Row="0" Background="#F5F5F5">
-                                    <Image Source="{Binding ThumbnailPath}" Stretch="Uniform" Margin="10" 
+                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="10" 
                                            MouseLeftButtonDown="Image_MouseLeftButtonDown"/>
                                 </Border>
                                 
