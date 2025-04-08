@@ -29,6 +29,10 @@ namespace PngViewer
         private bool _disposed = false;
         private int _lastLoadedIndex = 0;
         private bool _isLoadingThumbnails = false;
+        private readonly object _thumbnailLock = new object();
+        
+        // Placeholder for failed thumbnails
+        private static BitmapImage _placeholderImage;
         
         public MainWindow()
         {
@@ -47,10 +51,62 @@ namespace PngViewer
             _memoryMonitorTimer.Tick += MemoryMonitor_Tick;
             _memoryMonitorTimer.Start();
             
+            // Create placeholder image
+            _placeholderImage = CreatePlaceholderImage();
+            
             ImageGrid.ItemsSource = _pngFiles;
             
             // Initialize _cts to avoid null reference
             _cts = new CancellationTokenSource();
+        }
+
+        private BitmapImage CreatePlaceholderImage()
+        {
+            // Create a simple gray placeholder
+            var placeholder = new BitmapImage();
+            int width = 150;
+            int height = 150;
+            
+            var renderTargetBitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            var visual = new DrawingVisual();
+            
+            using (var context = visual.RenderOpen())
+            {
+                // Draw gray background
+                context.DrawRectangle(Brushes.LightGray, null, new Rect(0, 0, width, height));
+                
+                // Draw "No Preview" text
+                var textFormat = new FormattedText(
+                    "No Preview",
+                    System.Globalization.CultureInfo.CurrentCulture,
+                    FlowDirection.LeftToRight,
+                    new Typeface("Segoe UI"),
+                    14,
+                    Brushes.DarkGray,
+                    VisualTreeHelper.GetDpi(this).PixelsPerDip);
+                
+                // Center the text
+                context.DrawText(textFormat, new Point((width - textFormat.Width) / 2, (height - textFormat.Height) / 2));
+            }
+            
+            renderTargetBitmap.Render(visual);
+            
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(renderTargetBitmap));
+            
+            using (var stream = new MemoryStream())
+            {
+                encoder.Save(stream);
+                stream.Position = 0;
+                
+                placeholder.BeginInit();
+                placeholder.CacheOption = BitmapCacheOption.OnLoad;
+                placeholder.StreamSource = stream;
+                placeholder.EndInit();
+                placeholder.Freeze();
+            }
+            
+            return placeholder;
         }
 
         private void MemoryMonitor_Tick(object sender, EventArgs e)
@@ -103,6 +159,10 @@ namespace PngViewer
             if (_workerLoadImages.IsBusy)
                 _workerLoadImages.CancelAsync();
             
+            // Reset loading state
+            _isLoadingThumbnails = false;
+            _lastLoadedIndex = 0;
+            
             // Start loading in background
             _workerLoadImages.RunWorkerAsync(directoryPath);
         }
@@ -142,7 +202,9 @@ namespace PngViewer
                     {
                         FilePath = file,
                         FileName = fileInfo.Name,
-                        FileSize = FormatFileSize(fileInfo.Length)
+                        FileSize = FormatFileSize(fileInfo.Length),
+                        // Pre-assign placeholder
+                        Thumbnail = _placeholderImage
                     };
                     
                     pngFiles.Add(pngFile);
@@ -198,7 +260,7 @@ namespace PngViewer
             
             if (e.Result is List<PngFile> pngFiles)
             {
-                // Add files to the observable collection in batches
+                // Add files to the observable collection
                 _pngFiles.Clear();
                 foreach (var file in pngFiles)
                 {
@@ -207,81 +269,132 @@ namespace PngViewer
                 
                 txtFileCount.Text = $"{_pngFiles.Count} PNG files found";
                 
-                // Load first batch of thumbnails
-                LoadVisibleThumbnails();
+                // Start loading real thumbnails immediately after files are displayed
+                if (_pngFiles.Count > 0)
+                {
+                    // Wait a bit to let UI update before starting thumbnail load
+                    var delayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                    delayTimer.Tick += (s, args) =>
+                    {
+                        delayTimer.Stop();
+                        LoadVisibleThumbnails();
+                    };
+                    delayTimer.Start();
+                }
             }
         }
         
         private void ScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            LoadVisibleThumbnails();
+            if (Math.Abs(e.VerticalChange) > 5 || Math.Abs(e.HorizontalChange) > 5)
+            {
+                LoadVisibleThumbnails();
+            }
         }
         
         private void LoadVisibleThumbnails()
         {
             // Only load thumbnails for visible items
-            if (_pngFiles.Count == 0 || _isLoadingThumbnails)
+            if (_pngFiles.Count == 0)
                 return;
                 
-            // Calculate visible range based on current scroll position
-            var scrollViewer = FindVisualChild<ScrollViewer>(ImageGrid);
-            if (scrollViewer == null)
-                return;
+            // Use lock to prevent multiple concurrent loading operations
+            lock (_thumbnailLock)
+            {
+                if (_isLoadingThumbnails)
+                    return;
+                
+                _isLoadingThumbnails = true;
+            }
             
-            _isLoadingThumbnails = true;
+            Debug.WriteLine($"Loading thumbnails starting from index {_lastLoadedIndex}");
             
             try
             {
                 // Get visible items and load thumbnails
-                var loadThumbnailsTask = Task.Run(() => 
+                Task.Run(() => 
                 {
-                    if (_cts == null || _cts.Token.IsCancellationRequested)
-                        return;
-                        
-                    int startIndex = Math.Max(0, _lastLoadedIndex - 10);
-                    int endIndex = Math.Min(_pngFiles.Count - 1, _lastLoadedIndex + 30);
-                    
-                    for (int i = startIndex; i <= endIndex; i++)
+                    try
                     {
                         if (_cts == null || _cts.Token.IsCancellationRequested)
-                            return;
-                            
-                        if (i < 0 || i >= _pngFiles.Count)
-                            continue;
-                            
-                        var file = _pngFiles[i];
-                        
-                        Dispatcher.Invoke(() =>
                         {
-                            try
-                            {
-                                if (file.Thumbnail == null)
-                                {
-                                    file.Thumbnail = CreateThumbnail(file.FilePath);
-                                    _lastLoadedIndex = i;
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Debug.WriteLine($"Error loading thumbnail: {ex.Message}");
-                            }
-                        });
+                            FinishLoading();
+                            return;
+                        }
                         
-                        // Brief pause to prevent UI freeze
-                        Thread.Sleep(10);
+                        int startIndex = Math.Max(0, _lastLoadedIndex - 5);
+                        int endIndex = Math.Min(_pngFiles.Count - 1, startIndex + 20);
+                        
+                        for (int i = startIndex; i <= endIndex; i++)
+                        {
+                            if (_cts == null || _cts.Token.IsCancellationRequested)
+                            {
+                                FinishLoading();
+                                return;
+                            }
+                            
+                            if (i < 0 || i >= _pngFiles.Count)
+                                continue;
+                            
+                            Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                            {
+                                try
+                                {
+                                    var file = _pngFiles[i];
+                                    
+                                    // Only load if it's still a placeholder
+                                    if (file.Thumbnail == _placeholderImage || file.Thumbnail == null)
+                                    {
+                                        Debug.WriteLine($"Loading thumbnail for {file.FileName}");
+                                        var thumbnail = CreateThumbnail(file.FilePath);
+                                        if (thumbnail != null)
+                                        {
+                                            file.Thumbnail = thumbnail;
+                                            _lastLoadedIndex = i;
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.WriteLine($"Error loading thumbnail in Dispatcher: {ex.Message}");
+                                }
+                            }));
+                            
+                            // Brief pause to prevent UI freeze
+                            Thread.Sleep(20);
+                        }
+                        
+                        // If we processed the last batch, reset the index to start over
+                        if (endIndex >= _pngFiles.Count - 1)
+                        {
+                            _lastLoadedIndex = 0;
+                        }
+                        
+                        FinishLoading();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error in thumbnail loading task: {ex.Message}");
+                        FinishLoading();
                     }
                 }, _cts.Token);
-                
-                loadThumbnailsTask.ContinueWith(_ => 
-                {
-                    Dispatcher.Invoke(() => _isLoadingThumbnails = false);
-                });
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error in LoadVisibleThumbnails: {ex.Message}");
-                _isLoadingThumbnails = false;
+                Debug.WriteLine($"Error starting LoadVisibleThumbnails: {ex.Message}");
+                FinishLoading();
             }
+        }
+        
+        private void FinishLoading()
+        {
+            Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+            {
+                lock (_thumbnailLock)
+                {
+                    _isLoadingThumbnails = false;
+                }
+            }));
         }
         
         private BitmapImage CreateThumbnail(string filePath)
@@ -295,24 +408,34 @@ namespace PngViewer
             try
             {
                 if (!File.Exists(filePath))
-                    return null;
+                {
+                    Debug.WriteLine($"File not found: {filePath}");
+                    return _placeholderImage;
+                }
                 
                 // Create a small, memory-efficient thumbnail
                 var bitmap = new BitmapImage();
-                bitmap.BeginInit();
                 
-                // Use file stream instead of UriSource for more reliable loading
                 using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
                 {
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-                    bitmap.DecodePixelWidth = 150; // Reduce size significantly
-                    bitmap.StreamSource = stream;
-                    bitmap.EndInit();
+                    // Important: Read the image byte data
+                    byte[] imageData = new byte[stream.Length];
+                    stream.Read(imageData, 0, (int)stream.Length);
                     
-                    if (bitmap.CanFreeze)
+                    // Create thumbnail from memory
+                    using (var memoryStream = new MemoryStream(imageData))
                     {
-                        bitmap.Freeze(); // Make immutable for thread safety and better performance
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                        bitmap.DecodePixelWidth = 150; // Reduce size significantly
+                        bitmap.StreamSource = memoryStream;
+                        bitmap.EndInit();
+                        
+                        if (bitmap.CanFreeze)
+                        {
+                            bitmap.Freeze(); // Make immutable for thread safety and better performance
+                        }
                     }
                 }
                 
@@ -324,8 +447,7 @@ namespace PngViewer
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error creating thumbnail for {filePath}: {ex.Message}");
-                // Return placeholder for failed thumbnails
-                return null;
+                return _placeholderImage;
             }
         }
         
