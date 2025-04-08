@@ -23,7 +23,10 @@ namespace PngViewer
         private bool _isCropping = false;
         private Point _cropStartPoint;
         private bool _disposed = false;
-        private readonly BackgroundWorker _imageLoader = new BackgroundWorker();
+        private BackgroundWorker _imageLoader;
+
+        // Explicitly declaring loadingIndicator
+        private ProgressBar loadingIndicator;
 
         // Constants for zoom sensitivity
         private const double ZOOM_FACTOR_STEP = 0.1;
@@ -34,16 +37,23 @@ namespace PngViewer
         {
             InitializeComponent();
             
+            // Ensure loadingIndicator is properly initialized
+            loadingIndicator = this.FindName("loadingIndicator") as ProgressBar;
+            
             _imagePath = imagePath;
             Title = $"PNG Viewer - {Path.GetFileName(imagePath)}";
             
             // Configure background loader
+            _imageLoader = new BackgroundWorker();
             _imageLoader.DoWork += ImageLoader_DoWork;
             _imageLoader.RunWorkerCompleted += ImageLoader_RunWorkerCompleted;
             _imageLoader.WorkerSupportsCancellation = true;
             
             // Show loading indicator and start loading
-            loadingIndicator.Visibility = Visibility.Visible;
+            if (loadingIndicator != null)
+            {
+                loadingIndicator.Visibility = Visibility.Visible;
+            }
             _imageLoader.RunWorkerAsync(imagePath);
             
             // Set up window close event
@@ -79,7 +89,10 @@ namespace PngViewer
         
         private void ImageLoader_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            loadingIndicator.Visibility = Visibility.Collapsed;
+            if (loadingIndicator != null)
+            {
+                loadingIndicator.Visibility = Visibility.Collapsed;
+            }
             
             if (e.Result is Exception ex)
             {
@@ -414,7 +427,7 @@ namespace PngViewer
                 e.Handled = true;
             }
         }
-        
+
         private void ImageViewerWindow_Closing(object sender, CancelEventArgs e)
         {
             Dispose();
@@ -428,32 +441,37 @@ namespace PngViewer
         
         protected virtual void Dispose(bool disposing)
         {
-            if (_disposed)
-                return;
-                
-            if (disposing)
+            if (!_disposed)
             {
-                // Cancel any ongoing operations
-                if (_imageLoader.IsBusy)
+                if (disposing)
                 {
-                    _imageLoader.CancelAsync();
+                    // Cancel any ongoing operations
+                    if (_imageLoader != null && _imageLoader.IsBusy)
+                    {
+                        _imageLoader.CancelAsync();
+                    }
+                    
+                    // Dispose image resources
+                    ReleaseImage(ref _originalImage);
+                    
+                    if (_transformedImage != _originalImage)
+                    {
+                        ReleaseImage(ref _transformedImage);
+                    }
+                    
+                    // Clear event handlers
+                    Closing -= ImageViewerWindow_Closing;
+                    
+                    if (_imageLoader != null)
+                    {
+                        _imageLoader.DoWork -= ImageLoader_DoWork;
+                        _imageLoader.RunWorkerCompleted -= ImageLoader_RunWorkerCompleted;
+                        _imageLoader.Dispose();
+                    }
                 }
                 
-                // Dispose image resources
-                ReleaseImage(ref _originalImage);
-                
-                if (_transformedImage != _originalImage)
-                {
-                    ReleaseImage(ref _transformedImage);
-                }
-                
-                // Clear event handlers
-                Closing -= ImageViewerWindow_Closing;
-                _imageLoader.DoWork -= ImageLoader_DoWork;
-                _imageLoader.RunWorkerCompleted -= ImageLoader_RunWorkerCompleted;
+                _disposed = true;
             }
-            
-            _disposed = true;
         }
         
         private void ReleaseImage(ref BitmapSource image)
