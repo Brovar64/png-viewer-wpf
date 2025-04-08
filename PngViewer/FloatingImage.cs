@@ -18,6 +18,8 @@ namespace PngViewer
         private string _imagePath;
         private bool _disposed = false;
 
+        public bool IsDisposed => _disposed;
+
         public FloatingImage(string imagePath)
         {
             _imagePath = imagePath;
@@ -66,6 +68,7 @@ namespace PngViewer
                 // Set up event handlers
                 _pictureBox.MouseDown += PictureBox_MouseDown;
                 _form.KeyDown += Form_KeyDown;
+                _form.FormClosed += Form_FormClosed;
 
                 // Show the form (pure image)
                 _form.Show();
@@ -78,13 +81,18 @@ namespace PngViewer
             }
         }
 
+        private void Form_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            // Auto-dispose when the form is closed
+            Dispose();
+        }
+
         private void Form_KeyDown(object sender, System.Windows.Forms.KeyEventArgs e)
         {
             // Close on Escape or Space
             if (e.KeyCode == Keys.Escape || e.KeyCode == Keys.Space)
             {
                 _form.Close();
-                Dispose();
             }
         }
 
@@ -147,11 +155,15 @@ namespace PngViewer
                 if (_pictureBox != null)
                 {
                     _pictureBox.MouseDown -= PictureBox_MouseDown;
+                    _pictureBox.MouseMove -= PictureBox_MouseMove;
+                    _pictureBox.MouseUp -= PictureBox_MouseUp;
+                    
                     if (_pictureBox.Image != null)
                     {
                         _pictureBox.Image.Dispose();
                         _pictureBox.Image = null;
                     }
+                    
                     _pictureBox.Dispose();
                     _pictureBox = null;
                 }
@@ -159,8 +171,14 @@ namespace PngViewer
                 if (_form != null)
                 {
                     _form.KeyDown -= Form_KeyDown;
-                    _form.Close();
-                    _form.Dispose();
+                    _form.FormClosed -= Form_FormClosed;
+                    
+                    if (!_form.IsDisposed)
+                    {
+                        _form.Close();
+                        _form.Dispose();
+                    }
+                    
                     _form = null;
                 }
             }
