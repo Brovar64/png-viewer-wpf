@@ -31,6 +31,12 @@ namespace PngViewer
         private bool _isLoadingThumbnails = false;
         private readonly object _thumbnailLock = new object();
         
+        // Store the current selected thumbnail for context menu
+        private PngFile _currentContextPngFile;
+        
+        // Keep track of open floating images
+        private List<FloatingImage> _floatingImages = new List<FloatingImage>();
+        
         // Placeholder for failed thumbnails
         private static BitmapImage _placeholderImage;
         
@@ -494,6 +500,74 @@ namespace PngViewer
             }
         }
         
+        private void Image_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // Store the selected PNG file for context menu
+            var image = sender as System.Windows.Controls.Image;
+            if (image != null && image.DataContext is PngFile pngFile)
+            {
+                _currentContextPngFile = pngFile;
+            }
+        }
+        
+        private void MenuItemOpenViewer_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentContextPngFile != null && File.Exists(_currentContextPngFile.FilePath))
+            {
+                try
+                {
+                    // Open in standard viewer
+                    var imageViewer = new ImageViewerWindow(_currentContextPngFile.FilePath);
+                    imageViewer.Owner = this;
+                    imageViewer.Show();
+                }
+                catch (Exception ex)
+                {
+                    System.Windows.MessageBox.Show($"Error opening image: {ex.Message}", "Error", 
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+        
+        private void MenuItemOpenTransparent_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentContextPngFile != null && File.Exists(_currentContextPngFile.FilePath))
+            {
+                try
+                {
+                    // Create a pure floating image with transparency
+                    var floatingImage = new FloatingImage(_currentContextPngFile.FilePath);
+                    _floatingImages.Add(floatingImage);
+                    
+                    // Register for disposal when the floating image closes
+                    var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                    timer.Tick += (s, args) =>
+                    {
+                        // Check if any floating images have been closed and remove them from the list
+                        for (int i = _floatingImages.Count - 1; i >= 0; i--)
+                        {
+                            if (_floatingImages[i].IsDisposed)
+                            {
+                                _floatingImages.RemoveAt(i);
+                            }
+                        }
+                        
+                        // If all images are gone, stop the timer
+                        if (_floatingImages.Count == 0)
+                        {
+                            timer.Stop();
+                        }
+                    };
+                    timer.Start();
+                }
+                catch (Exception ex)
+                {
+                    System.Windows.MessageBox.Show($"Error opening transparent image: {ex.Message}", "Error", 
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+        
         private void Window_Closing(object sender, CancelEventArgs e)
         {
             // Clean up resources
@@ -528,6 +602,13 @@ namespace PngViewer
                 
                 // Clear collections
                 _pngFiles.Clear();
+                
+                // Dispose any open floating images
+                foreach (var floatingImage in _floatingImages)
+                {
+                    floatingImage.Dispose();
+                }
+                _floatingImages.Clear();
             }
             
             _disposed = true;
