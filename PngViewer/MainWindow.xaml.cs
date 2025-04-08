@@ -481,10 +481,30 @@ namespace PngViewer
                 {
                     if (File.Exists(pngFile.FilePath))
                     {
-                        // Open the image in a new window
-                        var imageViewer = new ImageViewerWindow(pngFile.FilePath);
-                        imageViewer.Owner = this;
-                        imageViewer.Show();
+                        // Open as transparent image instead of standard viewer
+                        var floatingImage = new FloatingImage(pngFile.FilePath);
+                        _floatingImages.Add(floatingImage);
+                        
+                        // Register for disposal when the floating image closes
+                        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                        timer.Tick += (s, args) =>
+                        {
+                            // Check if any floating images have been closed and remove them from the list
+                            for (int i = _floatingImages.Count - 1; i >= 0; i--)
+                            {
+                                if (_floatingImages[i].IsDisposed)
+                                {
+                                    _floatingImages.RemoveAt(i);
+                                }
+                            }
+                            
+                            // If all images are gone, stop the timer
+                            if (_floatingImages.Count == 0)
+                            {
+                                timer.Stop();
+                            }
+                        };
+                        timer.Start();
                     }
                     else
                     {
