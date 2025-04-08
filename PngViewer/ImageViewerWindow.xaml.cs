@@ -6,10 +6,12 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
+using System.ComponentModel;
+using System.Threading.Tasks;
 
 namespace PngViewer
 {
-    public partial class ImageViewerWindow : Window
+    public partial class ImageViewerWindow : Window, IDisposable
     {
         private string _imagePath;
         private BitmapSource _originalImage;
@@ -20,6 +22,8 @@ namespace PngViewer
         private double _rotation = 0;
         private bool _isCropping = false;
         private Point _cropStartPoint;
+        private bool _disposed = false;
+        private readonly BackgroundWorker _imageLoader = new BackgroundWorker();
 
         // Constants for zoom sensitivity
         private const double ZOOM_FACTOR_STEP = 0.1;
@@ -33,38 +37,73 @@ namespace PngViewer
             _imagePath = imagePath;
             Title = $"PNG Viewer - {Path.GetFileName(imagePath)}";
             
-            LoadImage(imagePath);
+            // Configure background loader
+            _imageLoader.DoWork += ImageLoader_DoWork;
+            _imageLoader.RunWorkerCompleted += ImageLoader_RunWorkerCompleted;
+            _imageLoader.WorkerSupportsCancellation = true;
             
-            // Center content in scroll viewer
-            scrollViewer.ScrollToHorizontalOffset((scrollViewer.ExtentWidth - scrollViewer.ViewportWidth) / 2);
-            scrollViewer.ScrollToVerticalOffset((scrollViewer.ExtentHeight - scrollViewer.ViewportHeight) / 2);
+            // Show loading indicator and start loading
+            loadingIndicator.Visibility = Visibility.Visible;
+            _imageLoader.RunWorkerAsync(imagePath);
+            
+            // Set up window close event
+            Closing += ImageViewerWindow_Closing;
         }
-
-        private void LoadImage(string filePath)
+        
+        private void ImageLoader_DoWork(object sender, DoWorkEventArgs e)
         {
+            string filePath = e.Argument as string;
             try
             {
+                // Load the image at a reduced size first for better performance
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.UriSource = new Uri(filePath);
-                bitmap.CacheOption = BitmapCacheOption.OnLoad; // Load into memory to release file lock
+                // For large images, decode to a lower resolution first
+                if (new FileInfo(filePath).Length > 5 * 1024 * 1024) // 5MB
+                {
+                    bitmap.DecodePixelWidth = 2000; // Balance between quality and memory
+                }
+                bitmap.CacheOption = BitmapCacheOption.OnLoad; // Release file lock after loading
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
                 bitmap.EndInit();
                 bitmap.Freeze(); // Make it immutable for better performance
                 
-                _originalImage = bitmap;
-                _transformedImage = _originalImage;
-                
-                ApplyTransformations();
-                UpdateImageInfo();
+                e.Result = bitmap;
             }
             catch (Exception ex)
+            {
+                e.Result = ex;
+            }
+        }
+        
+        private void ImageLoader_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            loadingIndicator.Visibility = Visibility.Collapsed;
+            
+            if (e.Result is Exception ex)
             {
                 MessageBox.Show($"Error loading image: {ex.Message}", "Error", 
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 Close();
+                return;
+            }
+            
+            if (e.Result is BitmapSource bitmap)
+            {
+                _originalImage = bitmap;
+                _transformedImage = _originalImage;
+                
+                // Set the image
+                ApplyTransformations();
+                UpdateImageInfo();
+                
+                // Center content in scroll viewer
+                scrollViewer.ScrollToHorizontalOffset((scrollViewer.ExtentWidth - scrollViewer.ViewportWidth) / 2);
+                scrollViewer.ScrollToVerticalOffset((scrollViewer.ExtentHeight - scrollViewer.ViewportHeight) / 2);
             }
         }
-        
+
         private void ApplyTransformations()
         {
             // We'll use a TransformedBitmap here if we need to rotate
@@ -72,10 +111,20 @@ namespace PngViewer
             {
                 var transform = new RotateTransform(_rotation);
                 var rotatedBitmap = new TransformedBitmap(_originalImage, transform);
+                if (_transformedImage != _originalImage)
+                {
+                    // Dispose previous transformed image if it's not the original
+                    ReleaseImage(ref _transformedImage);
+                }
                 _transformedImage = rotatedBitmap;
             }
             else
             {
+                if (_transformedImage != _originalImage)
+                {
+                    // Dispose previous transformed image if it's not the original
+                    ReleaseImage(ref _transformedImage);
+                }
                 _transformedImage = _originalImage;
             }
             
@@ -92,6 +141,13 @@ namespace PngViewer
             
             // Update zoom level display
             txtZoomLevel.Text = $"Zoom: {_zoomFactor * 100:0}%";
+            
+            // Force garbage collection after major transformations
+            Task.Run(() => 
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            });
         }
         
         private void UpdateImageInfo()
@@ -282,7 +338,9 @@ namespace PngViewer
                 var croppedBitmap = new CroppedBitmap(_transformedImage, cropRect);
                 
                 // Update the image
+                ReleaseImage(ref _originalImage);
                 _originalImage = croppedBitmap;
+                ReleaseImage(ref _transformedImage);
                 _transformedImage = _originalImage;
                 _rotation = 0; // Reset rotation after crop
                 
@@ -292,6 +350,9 @@ namespace PngViewer
                 
                 // Hide crop border
                 cropBorder.Visibility = Visibility.Collapsed;
+                
+                // Force garbage collection
+                GC.Collect();
             }
             catch (Exception ex)
             {
@@ -351,6 +412,56 @@ namespace PngViewer
                 cropBorder.Visibility = Visibility.Collapsed;
                 _isCropping = false;
                 e.Handled = true;
+            }
+        }
+        
+        private void ImageViewerWindow_Closing(object sender, CancelEventArgs e)
+        {
+            Dispose();
+        }
+        
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+        
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+                
+            if (disposing)
+            {
+                // Cancel any ongoing operations
+                if (_imageLoader.IsBusy)
+                {
+                    _imageLoader.CancelAsync();
+                }
+                
+                // Dispose image resources
+                ReleaseImage(ref _originalImage);
+                
+                if (_transformedImage != _originalImage)
+                {
+                    ReleaseImage(ref _transformedImage);
+                }
+                
+                // Clear event handlers
+                Closing -= ImageViewerWindow_Closing;
+                _imageLoader.DoWork -= ImageLoader_DoWork;
+                _imageLoader.RunWorkerCompleted -= ImageLoader_RunWorkerCompleted;
+            }
+            
+            _disposed = true;
+        }
+        
+        private void ReleaseImage(ref BitmapSource image)
+        {
+            if (image != null)
+            {
+                // Clear references to help garbage collection
+                image = null;
             }
         }
     }
