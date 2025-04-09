@@ -600,15 +600,17 @@ namespace PngViewer
                 // Clear collections
                 _pngFiles.Clear();
                 
-                // Dispose any open floating images
-                foreach (var floatingImage in _floatingImages)
+                // Dispose any open floating images - make a copy to avoid modification during enumeration
+                List<FloatingImage> floatingImagesCopy = new List<FloatingImage>(_floatingImages);
+                foreach (var floatingImage in floatingImagesCopy)
                 {
                     floatingImage.Dispose();
                 }
                 _floatingImages.Clear();
                 
-                // Dispose any open transparent windows
-                foreach (var window in _transparentWindows)
+                // Dispose any open transparent windows - make a copy to avoid modification during enumeration
+                List<TransparentImageWindow> transparentWindowsCopy = new List<TransparentImageWindow>(_transparentWindows);
+                foreach (var window in transparentWindowsCopy)
                 {
                     window.Close();
                     window.Dispose();
