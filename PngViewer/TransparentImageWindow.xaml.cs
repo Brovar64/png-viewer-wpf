@@ -27,6 +27,11 @@ namespace PngViewer
         private const int WS_CAPTION = 0x00C00000;
         private const int WS_BORDER = 0x00800000;
         
+        // For hit testing
+        private const int WM_NCHITTEST = 0x0084;
+        private const int HTCAPTION = 2;
+        private const int HTCLIENT = 1;
+        
         [DllImport("user32.dll", SetLastError = true)]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
         
@@ -38,6 +43,9 @@ namespace PngViewer
             InitializeComponent();
             
             _imagePath = imagePath;
+            
+            // Set window caption to display image name
+            Title = $"PNG Viewer - {Path.GetFileName(imagePath)}";
             
             // Configure background loader
             _imageLoader.DoWork += ImageLoader_DoWork;
@@ -63,10 +71,9 @@ namespace PngViewer
             var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
             SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
             
-            // NOTE: We don't need to set these properties here as they're already set in XAML
-            // this.WindowStyle = WindowStyle.None;
-            // this.Background = Brushes.Transparent;
-            // this.AllowsTransparency = true;
+            // Add message hook for handling hit-testing
+            HwndSource source = HwndSource.FromHwnd(hwnd);
+            source.AddHook(new HwndSourceHook(WndProc));
             
             // Use a timer to allow the window to fully render before removing borders
             DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(10) };
@@ -78,7 +85,71 @@ namespace PngViewer
                 SetWindowLong(hwnd, GWL_STYLE, style & ~(WS_SYSMENU | WS_CAPTION | WS_BORDER));
             };
             timer.Start();
+            
+            // Make this window topmost to ensure it stays visible
+            this.Topmost = true;
         }
+        
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            // Handle hit testing to make the whole window draggable
+            if (msg == WM_NCHITTEST)
+            {
+                // Get the point coordinates for the hit test
+                Point ptScreen = new Point(lParam.ToInt32() & 0xFFFF, lParam.ToInt32() >> 16);
+                
+                // Convert to client coordinates
+                Point ptClient = PointFromScreen(ptScreen);
+                
+                // Hit test against visible parts of the window
+                bool hitVisible = HitTestVisibleArea(ptClient);
+                
+                // If we hit a visible pixel, return HTCAPTION so the window can be dragged
+                if (hitVisible)
+                {
+                    handled = true;
+                    return new IntPtr(HTCAPTION);
+                }
+                
+                // Otherwise, return HTCLIENT to allow it to be clickthrough
+                handled = true;
+                return new IntPtr(HTCLIENT);
+            }
+            
+            return IntPtr.Zero;
+        }
+        
+        private bool HitTestVisibleArea(Point pt)
+        {
+            // Check if the point is within the bounds of the main image
+            if (pt.X < 0 || pt.Y < 0 || pt.X >= mainImage.ActualWidth || pt.Y >= mainImage.ActualHeight)
+                return false;
+            
+            // For fully transparent pixels, we want to detect hits only on non-transparent pixels
+            // This code would need to be adapted based on the specific requirements
+            
+            // If the image is loaded, check if the point is on a visible (non-transparent) pixel
+            if (_originalImage != null)
+            {
+                // Convert point from window coordinates to image coordinates
+                int pixelX = (int)(pt.X / _zoomFactor);
+                int pixelY = (int)(pt.Y / _zoomFactor);
+                
+                // Ensure we're within bounds
+                if (pixelX >= 0 && pixelX < _originalImage.PixelWidth &&
+                    pixelY >= 0 && pixelY < _originalImage.PixelHeight)
+                {
+                    // For now, we'll assume any point within the image bounds is visible
+                    // A more advanced implementation would check pixel transparency
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        // Keep track of zoom factor for coordinate calculations
+        private double _zoomFactor = 1.0;
         
         private void ImageLoader_DoWork(object sender, DoWorkEventArgs e)
         {
@@ -126,6 +197,9 @@ namespace PngViewer
                 
                 // Ensure window is centered on screen
                 CenterWindowOnScreen();
+                
+                // Add a thin border to make the image more visible
+                MainBorder.BorderThickness = new Thickness(1);
             }
         }
         
