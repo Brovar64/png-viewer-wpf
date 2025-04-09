@@ -26,11 +26,17 @@
         </ControlTemplate>
     </Window.Template>
     
-    <!-- The only element is the image itself - no other UI elements -->
-    <Image x:Name="mainImage" 
-           Stretch="None" 
-           Margin="0"
-           RenderOptions.BitmapScalingMode="HighQuality"
-           SnapsToDevicePixels="True" 
-           UseLayoutRounding="True"/>
+    <!-- Border to outline the image for better visibility -->
+    <Border x:Name="MainBorder" 
+            BorderThickness="0" 
+            BorderBrush="#50808080"
+            Background="Transparent">
+        <!-- The image itself with no other UI elements -->
+        <Image x:Name="mainImage" 
+               Stretch="None" 
+               Margin="0"
+               RenderOptions.BitmapScalingMode="HighQuality"
+               SnapsToDevicePixels="True" 
+               UseLayoutRounding="True"/>
+    </Border>
 </Window>
