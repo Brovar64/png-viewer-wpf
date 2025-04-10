@@ -24,9 +24,6 @@ namespace PngViewer
         private bool _isDragging = false;
         private Point _dragStartPoint;
         
-        // Zoom related fields
-        private double _scale = 1.0;
-        
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
         private const int GWL_EXSTYLE = -20;
@@ -90,6 +87,9 @@ namespace PngViewer
             // Register mouse events for custom dragging
             this.MouseMove += Window_MouseMove;
             this.MouseLeftButtonUp += Window_MouseLeftButtonUp;
+            
+            // Explicitly register the mouse wheel event
+            this.MouseWheel += Window_MouseWheel;
             
             // Make sure it stays on top
             this.Topmost = true;
@@ -211,30 +211,10 @@ namespace PngViewer
         
         private void Window_MouseWheel(object sender, MouseWheelEventArgs e)
         {
-            // Simple direct approach to scaling the image
-            if (e.Delta > 0)
-            {
-                // Scale up when scrolling up
-                _scale += 0.1;
-            }
-            else
-            {
-                // Scale down when scrolling down
-                _scale -= 0.1;
-            }
+            // Show a message box to verify the event is firing
+            MessageBox.Show("Mouse wheel event fired! Delta: " + e.Delta);
             
-            // Enforce minimum and maximum scale limits
-            _scale = Math.Max(0.1, Math.Min(10.0, _scale));
-            
-            // Apply the scale transform to the image
-            ScaleTransform scaleTransform = new ScaleTransform(_scale, _scale);
-            mainImage.RenderTransform = scaleTransform;
-            
-            // Update the window size to match the scaled image
-            Width = _originalImage.PixelWidth * _scale;
-            Height = _originalImage.PixelHeight * _scale;
-            
-            // Mark event as handled to prevent it from bubbling up
+            // Mark event as handled
             e.Handled = true;
         }
         
@@ -346,6 +326,9 @@ namespace PngViewer
                 Deactivated -= TransparentImageWindow_Deactivated;
                 MouseMove -= Window_MouseMove;
                 MouseLeftButtonUp -= Window_MouseLeftButtonUp;
+                
+                // Be explicit about removing the MouseWheel handler
+                MouseWheel -= Window_MouseWheel;
             }
             
             _disposed = true;
