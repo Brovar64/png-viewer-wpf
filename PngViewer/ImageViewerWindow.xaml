@@ -7,7 +7,8 @@
         mc:Ignorable="d"
         Title="PNG Viewer" Height="700" Width="900"
         WindowStartupLocation="CenterOwner"
-        KeyDown="Window_KeyDown">
+        KeyDown="Window_KeyDown"
+        PreviewMouseWheel="Window_PreviewMouseWheel">
     <Window.Resources>
         <Style x:Key="ToolbarButtonStyle" TargetType="Button">
             <Setter Property="Margin" Value="2,0"/>
@@ -67,7 +68,6 @@
                       HorizontalScrollBarVisibility="Auto" 
                       VerticalScrollBarVisibility="Auto"
                       Background="#EEEEEE"
-                      MouseWheel="ScrollViewer_MouseWheel"
                       MouseMove="ScrollViewer_MouseMove"
                       PreviewMouseLeftButtonDown="ScrollViewer_PreviewMouseLeftButtonDown"
                       PreviewMouseLeftButtonUp="ScrollViewer_PreviewMouseLeftButtonUp">

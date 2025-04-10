@@ -8,6 +8,7 @@ using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace PngViewer
 {
@@ -42,8 +43,72 @@ namespace PngViewer
             _imageLoader.RunWorkerCompleted += ImageLoader_RunWorkerCompleted;
             _imageLoader.WorkerSupportsCancellation = true;
             
+            // CRITICAL: Add direct mouse wheel event to the window using code
+            // This ensures the event is definitely attached
+            this.PreviewMouseWheel += Window_PreviewMouseWheel_Direct;
+            
             // Start loading
             _imageLoader.RunWorkerAsync(imagePath);
+        }
+        
+        // Direct handler with notification to verify it's working
+        private void Window_PreviewMouseWheel_Direct(object sender, MouseWheelEventArgs e)
+        {
+            if (_transformedImage == null)
+                return;
+            
+            // Simple notification to verify the event is firing
+            Debug.WriteLine($"WHEEL EVENT DETECTED! Delta: {e.Delta}");
+            
+            // Determine zoom direction based on wheel delta
+            double newZoomFactor = _zoomFactor;
+            if (e.Delta > 0)
+            {
+                // Zoom in
+                newZoomFactor += ZOOM_FACTOR_STEP;
+                txtZoomLevel.Text = $"Zoom In: {newZoomFactor:F2}";
+            }
+            else
+            {
+                // Zoom out
+                newZoomFactor -= ZOOM_FACTOR_STEP;
+                txtZoomLevel.Text = $"Zoom Out: {newZoomFactor:F2}";
+            }
+            
+            // Enforce min/max zoom limits
+            newZoomFactor = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, newZoomFactor));
+            
+            // Skip if no change
+            if (Math.Abs(_zoomFactor - newZoomFactor) < 0.001)
+                return;
+            
+            // Get cursor position
+            Point cursorPosition = e.GetPosition(scrollViewer);
+            
+            // Get the relative position of the cursor in the image
+            double relativeX = (scrollViewer.HorizontalOffset + cursorPosition.X) / (_transformedImage.PixelWidth * _zoomFactor);
+            double relativeY = (scrollViewer.VerticalOffset + cursorPosition.Y) / (_transformedImage.PixelHeight * _zoomFactor);
+            
+            // Update zoom factor
+            _zoomFactor = newZoomFactor;
+            
+            // Update image size
+            mainImage.Width = _transformedImage.PixelWidth * _zoomFactor;
+            mainImage.Height = _transformedImage.PixelHeight * _zoomFactor;
+            
+            // Update canvas size
+            imageCanvas.Width = mainImage.Width;
+            imageCanvas.Height = mainImage.Height;
+            
+            // Update zoom display
+            txtZoomLevel.Text = $"Zoom: {_zoomFactor * 100:0}%";
+            
+            // Adjust scroll position to keep cursor point fixed
+            scrollViewer.ScrollToHorizontalOffset((relativeX * _transformedImage.PixelWidth * _zoomFactor) - cursorPosition.X);
+            scrollViewer.ScrollToVerticalOffset((relativeY * _transformedImage.PixelHeight * _zoomFactor) - cursorPosition.Y);
+            
+            // Don't let ScrollViewer handle this event
+            e.Handled = true;
         }
         
         private void ImageLoader_DoWork(object sender, DoWorkEventArgs e)
@@ -95,6 +160,10 @@ namespace PngViewer
                 // Center content in scroll viewer
                 scrollViewer.ScrollToHorizontalOffset((scrollViewer.ExtentWidth - scrollViewer.ViewportWidth) / 2);
                 scrollViewer.ScrollToVerticalOffset((scrollViewer.ExtentHeight - scrollViewer.ViewportHeight) / 2);
+                
+                // Show message that indicates wheel zoom is ready
+                MessageBox.Show("Image loaded. You can now use the mouse wheel to zoom in and out.", 
+                    "Ready for Wheel Zoom", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
@@ -176,7 +245,7 @@ namespace PngViewer
             ZoomImage(1.0);
         }
 
-        private void ZoomImage(double newZoomFactor)
+        private void ZoomImage(double newZoomFactor, Point? pivotPoint = null)
         {
             // Enforce min/max zoom limits
             newZoomFactor = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, newZoomFactor));
@@ -184,13 +253,23 @@ namespace PngViewer
             if (Math.Abs(_zoomFactor - newZoomFactor) < 0.001)
                 return;
             
-            // Get the center point of the visible area
-            var centerX = scrollViewer.HorizontalOffset + (scrollViewer.ViewportWidth / 2);
-            var centerY = scrollViewer.VerticalOffset + (scrollViewer.ViewportHeight / 2);
+            double relativeX, relativeY;
             
-            // Calculate the relative position within the image
-            var relativeX = centerX / (_transformedImage.PixelWidth * _zoomFactor);
-            var relativeY = centerY / (_transformedImage.PixelHeight * _zoomFactor);
+            if (pivotPoint.HasValue)
+            {
+                // Calculate relative position based on cursor position
+                relativeX = (scrollViewer.HorizontalOffset + pivotPoint.Value.X) / (_transformedImage.PixelWidth * _zoomFactor);
+                relativeY = (scrollViewer.VerticalOffset + pivotPoint.Value.Y) / (_transformedImage.PixelHeight * _zoomFactor);
+            }
+            else
+            {
+                // Fall back to center-based zooming
+                var centerX = scrollViewer.HorizontalOffset + (scrollViewer.ViewportWidth / 2);
+                var centerY = scrollViewer.VerticalOffset + (scrollViewer.ViewportHeight / 2);
+                
+                relativeX = centerX / (_transformedImage.PixelWidth * _zoomFactor);
+                relativeY = centerY / (_transformedImage.PixelHeight * _zoomFactor);
+            }
             
             // Update zoom factor
             _zoomFactor = newZoomFactor;
@@ -198,21 +277,24 @@ namespace PngViewer
             // Apply new transformations
             ApplyTransformations();
             
-            // Adjust scroll position to keep center point
-            scrollViewer.ScrollToHorizontalOffset((relativeX * _transformedImage.PixelWidth * _zoomFactor) - (scrollViewer.ViewportWidth / 2));
-            scrollViewer.ScrollToVerticalOffset((relativeY * _transformedImage.PixelHeight * _zoomFactor) - (scrollViewer.ViewportHeight / 2));
+            // Adjust scroll position to keep the pivot point
+            if (pivotPoint.HasValue)
+            {
+                scrollViewer.ScrollToHorizontalOffset((relativeX * _transformedImage.PixelWidth * _zoomFactor) - pivotPoint.Value.X);
+                scrollViewer.ScrollToVerticalOffset((relativeY * _transformedImage.PixelHeight * _zoomFactor) - pivotPoint.Value.Y);
+            }
+            else
+            {
+                scrollViewer.ScrollToHorizontalOffset((relativeX * _transformedImage.PixelWidth * _zoomFactor) - (scrollViewer.ViewportWidth / 2));
+                scrollViewer.ScrollToVerticalOffset((relativeY * _transformedImage.PixelHeight * _zoomFactor) - (scrollViewer.ViewportHeight / 2));
+            }
         }
 
-        private void ScrollViewer_MouseWheel(object sender, MouseWheelEventArgs e)
+        // This is the handler from XAML - will delegate to our direct handler
+        private void Window_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (Keyboard.Modifiers == ModifierKeys.Control)
-            {
-                // Determine zoom direction based on wheel delta
-                double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
-                ZoomImage(_zoomFactor + zoomChange);
-                
-                e.Handled = true;
-            }
+            // Call our direct handler directly
+            Window_PreviewMouseWheel_Direct(sender, e);
         }
 
         private void ScrollViewer_MouseMove(object sender, MouseEventArgs e)
@@ -451,6 +533,9 @@ namespace PngViewer
                 Closing -= ImageViewerWindow_Closing;
                 _imageLoader.DoWork -= ImageLoader_DoWork;
                 _imageLoader.RunWorkerCompleted -= ImageLoader_RunWorkerCompleted;
+                
+                // Remove our direct event handler
+                this.PreviewMouseWheel -= Window_PreviewMouseWheel_Direct;
             }
             
             _disposed = true;
