@@ -232,6 +232,7 @@ namespace PngViewer
             // Zoom with cursor as pivot point
             ZoomImage(_zoomFactor + zoomChange, cursorPosition);
             
+            // Mark the event as handled to prevent the ScrollViewer from scrolling
             e.Handled = true;
         }
 
