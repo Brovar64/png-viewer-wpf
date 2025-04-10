@@ -63,10 +63,8 @@ namespace PngViewer
             var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
             SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
             
-            // Ensure window is transparent
-            this.WindowStyle = WindowStyle.None;
-            this.Background = Brushes.Transparent;
-            this.AllowsTransparency = true;
+            // NOTE: AllowsTransparency is already set in XAML and shouldn't be set here
+            // as it will cause a runtime exception if set after the window is shown
             
             // Use a timer to allow the window to fully render before removing borders
             DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(10) };
