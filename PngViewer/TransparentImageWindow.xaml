@@ -20,18 +20,40 @@
         MouseWheel="Window_MouseWheel"
         KeyDown="Window_KeyDown">
     
-    <!-- No padding, margins, or borders -->
-    <Window.Template>
-        <ControlTemplate TargetType="{x:Type Window}">
-            <ContentPresenter Margin="0" Content="{TemplateBinding Content}" />
-        </ControlTemplate>
-    </Window.Template>
-    
-    <!-- The only element is the image itself - no other UI elements -->
-    <Image x:Name="mainImage" 
-           Stretch="None" 
-           Margin="0"
-           RenderOptions.BitmapScalingMode="HighQuality"
-           SnapsToDevicePixels="True" 
-           UseLayoutRounding="True"/>
+    <!-- The content now includes zoom buttons -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- The image -->
+        <Image x:Name="mainImage" 
+               Grid.Row="0"
+               Stretch="None" 
+               Margin="0"
+               RenderOptions.BitmapScalingMode="HighQuality"
+               SnapsToDevicePixels="True" 
+               UseLayoutRounding="True"/>
+               
+        <!-- Zoom controls -->
+        <StackPanel Grid.Row="1" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Center"
+                    Background="#80000000"
+                    Margin="0,5">
+            <Button x:Name="btnZoomOut" 
+                    Content="-" 
+                    Width="30" 
+                    Height="30"
+                    Margin="5,0"
+                    Click="btnZoomOut_Click"/>
+            <Button x:Name="btnZoomIn" 
+                    Content="+" 
+                    Width="30" 
+                    Height="30"
+                    Margin="5,0"
+                    Click="btnZoomIn_Click"/>
+        </StackPanel>
+    </Grid>
 </Window>
