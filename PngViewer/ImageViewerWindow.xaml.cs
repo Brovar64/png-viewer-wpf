@@ -176,7 +176,7 @@ namespace PngViewer
             ZoomImage(1.0);
         }
 
-        private void ZoomImage(double newZoomFactor)
+        private void ZoomImage(double newZoomFactor, Point? pivotPoint = null)
         {
             // Enforce min/max zoom limits
             newZoomFactor = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, newZoomFactor));
@@ -184,13 +184,23 @@ namespace PngViewer
             if (Math.Abs(_zoomFactor - newZoomFactor) < 0.001)
                 return;
             
-            // Get the center point of the visible area
-            var centerX = scrollViewer.HorizontalOffset + (scrollViewer.ViewportWidth / 2);
-            var centerY = scrollViewer.VerticalOffset + (scrollViewer.ViewportHeight / 2);
+            double relativeX, relativeY;
             
-            // Calculate the relative position within the image
-            var relativeX = centerX / (_transformedImage.PixelWidth * _zoomFactor);
-            var relativeY = centerY / (_transformedImage.PixelHeight * _zoomFactor);
+            if (pivotPoint.HasValue)
+            {
+                // Calculate relative position based on cursor position
+                relativeX = (scrollViewer.HorizontalOffset + pivotPoint.Value.X) / (_transformedImage.PixelWidth * _zoomFactor);
+                relativeY = (scrollViewer.VerticalOffset + pivotPoint.Value.Y) / (_transformedImage.PixelHeight * _zoomFactor);
+            }
+            else
+            {
+                // Fall back to center-based zooming
+                var centerX = scrollViewer.HorizontalOffset + (scrollViewer.ViewportWidth / 2);
+                var centerY = scrollViewer.VerticalOffset + (scrollViewer.ViewportHeight / 2);
+                
+                relativeX = centerX / (_transformedImage.PixelWidth * _zoomFactor);
+                relativeY = centerY / (_transformedImage.PixelHeight * _zoomFactor);
+            }
             
             // Update zoom factor
             _zoomFactor = newZoomFactor;
@@ -198,21 +208,31 @@ namespace PngViewer
             // Apply new transformations
             ApplyTransformations();
             
-            // Adjust scroll position to keep center point
-            scrollViewer.ScrollToHorizontalOffset((relativeX * _transformedImage.PixelWidth * _zoomFactor) - (scrollViewer.ViewportWidth / 2));
-            scrollViewer.ScrollToVerticalOffset((relativeY * _transformedImage.PixelHeight * _zoomFactor) - (scrollViewer.ViewportHeight / 2));
+            // Adjust scroll position to keep the pivot point
+            if (pivotPoint.HasValue)
+            {
+                scrollViewer.ScrollToHorizontalOffset((relativeX * _transformedImage.PixelWidth * _zoomFactor) - pivotPoint.Value.X);
+                scrollViewer.ScrollToVerticalOffset((relativeY * _transformedImage.PixelHeight * _zoomFactor) - pivotPoint.Value.Y);
+            }
+            else
+            {
+                scrollViewer.ScrollToHorizontalOffset((relativeX * _transformedImage.PixelWidth * _zoomFactor) - (scrollViewer.ViewportWidth / 2));
+                scrollViewer.ScrollToVerticalOffset((relativeY * _transformedImage.PixelHeight * _zoomFactor) - (scrollViewer.ViewportHeight / 2));
+            }
         }
 
         private void ScrollViewer_MouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (Keyboard.Modifiers == ModifierKeys.Control)
-            {
-                // Determine zoom direction based on wheel delta
-                double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
-                ZoomImage(_zoomFactor + zoomChange);
-                
-                e.Handled = true;
-            }
+            // Get the cursor position relative to the ScrollViewer
+            Point cursorPosition = e.GetPosition(scrollViewer);
+            
+            // Determine zoom direction based on wheel delta
+            double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
+            
+            // Zoom with cursor as pivot point
+            ZoomImage(_zoomFactor + zoomChange, cursorPosition);
+            
+            e.Handled = true;
         }
 
         private void ScrollViewer_MouseMove(object sender, MouseEventArgs e)
