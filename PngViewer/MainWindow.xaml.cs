@@ -140,8 +140,23 @@ namespace PngViewer
             // Remove disposed windows from the list
             for (int i = _transparentWindows.Count - 1; i >= 0; i--)
             {
-                if (_transparentWindows[i].IsDisposed)
+                if (_transparentWindows[i].IsDisposed || 
+                    !_transparentWindows[i].IsLoaded || 
+                    !_transparentWindows[i].IsVisible)
                 {
+                    // If window is disposed, not loaded, or not visible
+                    try
+                    {
+                        if (!_transparentWindows[i].IsDisposed)
+                        {
+                            _transparentWindows[i].Dispose();
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore any exceptions during cleanup
+                    }
+                    
                     _transparentWindows.RemoveAt(i);
                 }
             }
@@ -506,11 +521,19 @@ namespace PngViewer
                         {
                             if (s is TransparentImageWindow window)
                             {
-                                window.Dispose();
+                                try
+                                {
+                                    window.Dispose();
+                                }
+                                catch
+                                {
+                                    // Ignore any exceptions during disposal
+                                }
                                 // Cleanup happens in the timer
                             }
                         };
                         
+                        // Show as a non-modal dialog to maintain Z-order
                         transparentWindow.Show();
                     }
                     else
@@ -573,11 +596,19 @@ namespace PngViewer
                     {
                         if (s is TransparentImageWindow window)
                         {
-                            window.Dispose();
+                            try
+                            {
+                                window.Dispose();
+                            }
+                            catch
+                            {
+                                // Ignore any exceptions during disposal
+                            }
                             // Cleanup happens in the timer
                         }
                     };
                     
+                    // Show as a non-modal dialog to maintain Z-order
                     transparentWindow.Show();
                 }
                 catch (Exception ex)
@@ -626,9 +657,16 @@ namespace PngViewer
                 // Dispose any open transparent windows
                 foreach (var window in _transparentWindows)
                 {
-                    if (!window.IsDisposed)
+                    try
                     {
-                        window.Dispose();
+                        if (!window.IsDisposed)
+                        {
+                            window.Dispose();
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore any exceptions during disposal
                     }
                 }
                 _transparentWindows.Clear();
