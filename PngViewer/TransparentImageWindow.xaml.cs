@@ -18,6 +18,7 @@ namespace PngViewer
         private BitmapSource _originalImage;
         private bool _disposed = false;
         private readonly BackgroundWorker _imageLoader = new BackgroundWorker();
+        private readonly DispatcherTimer _visibilityTimer;
         
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
@@ -27,13 +28,34 @@ namespace PngViewer
         private const int WS_CAPTION = 0x00C00000;
         private const int WS_BORDER = 0x00800000;
         
+        // Win32 constants for window positioning
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+        private const int HWND_TOPMOST = -1;
+        
         [DllImport("user32.dll", SetLastError = true)]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
         
         [DllImport("user32.dll")]
         private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
         
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+        
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+        
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        
+        private const int SW_SHOW = 5;
+        
         public bool IsDisposed => _disposed;
+        private IntPtr _windowHandle;
         
         public TransparentImageWindow(string imagePath)
         {
@@ -46,8 +68,20 @@ namespace PngViewer
             _imageLoader.RunWorkerCompleted += ImageLoader_RunWorkerCompleted;
             _imageLoader.WorkerSupportsCancellation = true;
             
+            // Set up visibility timer to periodically check and ensure window is visible
+            _visibilityTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(500)
+            };
+            _visibilityTimer.Tick += VisibilityTimer_Tick;
+            
             // Apply additional settings after window is loaded
             this.Loaded += TransparentImageWindow_Loaded;
+            this.Activated += TransparentImageWindow_Activated;
+            this.Deactivated += TransparentImageWindow_Deactivated;
+            
+            // Make sure it stays on top
+            this.Topmost = true;
             
             // Start loading
             _imageLoader.RunWorkerAsync(imagePath);
@@ -55,29 +89,57 @@ namespace PngViewer
 
         private void TransparentImageWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            var hwnd = new WindowInteropHelper(this).Handle;
+            _windowHandle = new WindowInteropHelper(this).Handle;
             
             // Remove system menu, caption and borders
-            var style = GetWindowLong(hwnd, GWL_STYLE);
-            SetWindowLong(hwnd, GWL_STYLE, style & ~(WS_SYSMENU | WS_CAPTION | WS_BORDER));
+            var style = GetWindowLong(_windowHandle, GWL_STYLE);
+            SetWindowLong(_windowHandle, GWL_STYLE, style & ~(WS_SYSMENU | WS_CAPTION | WS_BORDER));
             
             // Make it a tool window so it doesn't show in taskbar or Alt+Tab
-            var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-            SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
+            var exStyle = GetWindowLong(_windowHandle, GWL_EXSTYLE);
+            SetWindowLong(_windowHandle, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
             
             // NOTE: AllowsTransparency is already set in XAML and cannot be changed here
             // The Background is also set to Transparent in XAML
             
-            // Use a timer to allow the window to fully render before removing borders
-            DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(10) };
-            timer.Tick += (s, args) => 
+            // Ensure window is visible and topmost
+            SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            
+            // Start visibility timer
+            _visibilityTimer.Start();
+        }
+        
+        private void TransparentImageWindow_Activated(object sender, EventArgs e)
+        {
+            // When window is activated, ensure it remains topmost
+            this.Topmost = true;
+        }
+        
+        private void TransparentImageWindow_Deactivated(object sender, EventArgs e)
+        {
+            // Prevent window from losing topmost status when deactivated
+            this.Topmost = true;
+        }
+        
+        private void VisibilityTimer_Tick(object sender, EventArgs e)
+        {
+            // Safety mechanism to ensure window stays visible
+            if (_windowHandle != IntPtr.Zero && !_disposed)
             {
-                timer.Stop();
-                
-                // Apply window style changes again to ensure they stick
-                SetWindowLong(hwnd, GWL_STYLE, style & ~(WS_SYSMENU | WS_CAPTION | WS_BORDER));
-            };
-            timer.Start();
+                if (!IsWindowVisible(_windowHandle))
+                {
+                    // Window became invisible, make it visible again
+                    ShowWindow(_windowHandle, SW_SHOW);
+                    
+                    // Ensure it's topmost
+                    SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                    
+                    // Update topmost property
+                    this.Topmost = true;
+                }
+            }
         }
         
         private void ImageLoader_DoWork(object sender, DoWorkEventArgs e)
@@ -126,6 +188,13 @@ namespace PngViewer
                 
                 // Ensure window is centered on screen
                 CenterWindowOnScreen();
+                
+                // Make sure it's visible and on top after resizing
+                if (_windowHandle != IntPtr.Zero)
+                {
+                    SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                }
             }
         }
         
@@ -145,6 +214,9 @@ namespace PngViewer
         {
             // Allow dragging the window by clicking anywhere on the image
             DragMove();
+            
+            // Ensure it remains topmost after drag
+            this.Topmost = true;
         }
         
         private void Window_KeyDown(object sender, KeyEventArgs e)
@@ -158,6 +230,9 @@ namespace PngViewer
         
         protected override void OnClosing(CancelEventArgs e)
         {
+            // Stop the visibility timer
+            _visibilityTimer.Stop();
+            
             base.OnClosing(e);
             Dispose();
         }
@@ -175,6 +250,9 @@ namespace PngViewer
                 
             if (disposing)
             {
+                // Stop the visibility timer
+                _visibilityTimer.Stop();
+                
                 // Cancel any ongoing operations
                 if (_imageLoader.IsBusy)
                 {
@@ -188,6 +266,8 @@ namespace PngViewer
                 _imageLoader.DoWork -= ImageLoader_DoWork;
                 _imageLoader.RunWorkerCompleted -= ImageLoader_RunWorkerCompleted;
                 Loaded -= TransparentImageWindow_Loaded;
+                Activated -= TransparentImageWindow_Activated;
+                Deactivated -= TransparentImageWindow_Deactivated;
             }
             
             _disposed = true;
