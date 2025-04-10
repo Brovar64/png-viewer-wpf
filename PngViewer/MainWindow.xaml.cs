@@ -1,20 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using System.Windows.Forms;
-using System.ComponentModel;
 
 namespace PngViewer
 {
@@ -34,8 +33,8 @@ namespace PngViewer
         // Store the current selected thumbnail for context menu
         private PngFile _currentContextPngFile;
         
-        // Keep track of open floating images
-        private List<FloatingImage> _floatingImages = new List<FloatingImage>();
+        // Keep track of open transparent windows
+        private List<TransparentImageWindow> _transparentWindows = new List<TransparentImageWindow>();
         
         // Placeholder for failed thumbnails
         private static BitmapImage _placeholderImage;
@@ -130,6 +129,36 @@ namespace PngViewer
                 // Reduce cache size
                 _thumbnailCache.Trim(100);
                 GC.Collect();
+            }
+            
+            // Clean up disposed transparent windows
+            CleanupDisposedWindows();
+        }
+        
+        private void CleanupDisposedWindows()
+        {
+            // Remove disposed windows from the list
+            for (int i = _transparentWindows.Count - 1; i >= 0; i--)
+            {
+                if (_transparentWindows[i].IsDisposed || 
+                    !_transparentWindows[i].IsLoaded || 
+                    !_transparentWindows[i].IsVisible)
+                {
+                    // If window is disposed, not loaded, or not visible
+                    try
+                    {
+                        if (!_transparentWindows[i].IsDisposed)
+                        {
+                            _transparentWindows[i].Dispose();
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore any exceptions during cleanup
+                    }
+                    
+                    _transparentWindows.RemoveAt(i);
+                }
             }
         }
 
@@ -481,30 +510,31 @@ namespace PngViewer
                 {
                     if (File.Exists(pngFile.FilePath))
                     {
-                        // Create a pure floating image with transparency
-                        var floatingImage = new FloatingImage(pngFile.FilePath);
-                        _floatingImages.Add(floatingImage);
+                        // Create a pure transparent window with better transparency handling
+                        var transparentWindow = new TransparentImageWindow(pngFile.FilePath);
                         
-                        // Register for disposal when the floating image closes
-                        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-                        timer.Tick += (s, args) =>
+                        // Keep a strong reference to prevent garbage collection
+                        _transparentWindows.Add(transparentWindow);
+                        
+                        // Set up window closing event to help with cleanup
+                        transparentWindow.Closed += (s, args) =>
                         {
-                            // Check if any floating images have been closed and remove them from the list
-                            for (int i = _floatingImages.Count - 1; i >= 0; i--)
+                            if (s is TransparentImageWindow window)
                             {
-                                if (_floatingImages[i].IsDisposed)
+                                try
                                 {
-                                    _floatingImages.RemoveAt(i);
+                                    window.Dispose();
                                 }
-                            }
-                            
-                            // If all images are gone, stop the timer
-                            if (_floatingImages.Count == 0)
-                            {
-                                timer.Stop();
+                                catch
+                                {
+                                    // Ignore any exceptions during disposal
+                                }
+                                // Cleanup happens in the timer
                             }
                         };
-                        timer.Start();
+                        
+                        // Show as a non-modal dialog to maintain Z-order
+                        transparentWindow.Show();
                     }
                     else
                     {
@@ -555,30 +585,31 @@ namespace PngViewer
             {
                 try
                 {
-                    // Create a pure floating image with transparency
-                    var floatingImage = new FloatingImage(_currentContextPngFile.FilePath);
-                    _floatingImages.Add(floatingImage);
+                    // Create a pure transparent window with better transparency handling
+                    var transparentWindow = new TransparentImageWindow(_currentContextPngFile.FilePath);
                     
-                    // Register for disposal when the floating image closes
-                    var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-                    timer.Tick += (s, args) =>
+                    // Keep a strong reference to prevent garbage collection
+                    _transparentWindows.Add(transparentWindow);
+                    
+                    // Set up window closing event to help with cleanup
+                    transparentWindow.Closed += (s, args) =>
                     {
-                        // Check if any floating images have been closed and remove them from the list
-                        for (int i = _floatingImages.Count - 1; i >= 0; i--)
+                        if (s is TransparentImageWindow window)
                         {
-                            if (_floatingImages[i].IsDisposed)
+                            try
                             {
-                                _floatingImages.RemoveAt(i);
+                                window.Dispose();
                             }
-                        }
-                        
-                        // If all images are gone, stop the timer
-                        if (_floatingImages.Count == 0)
-                        {
-                            timer.Stop();
+                            catch
+                            {
+                                // Ignore any exceptions during disposal
+                            }
+                            // Cleanup happens in the timer
                         }
                     };
-                    timer.Start();
+                    
+                    // Show as a non-modal dialog to maintain Z-order
+                    transparentWindow.Show();
                 }
                 catch (Exception ex)
                 {
@@ -623,12 +654,22 @@ namespace PngViewer
                 // Clear collections
                 _pngFiles.Clear();
                 
-                // Dispose any open floating images
-                foreach (var floatingImage in _floatingImages)
+                // Dispose any open transparent windows
+                foreach (var window in _transparentWindows)
                 {
-                    floatingImage.Dispose();
+                    try
+                    {
+                        if (!window.IsDisposed)
+                        {
+                            window.Dispose();
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore any exceptions during disposal
+                    }
                 }
-                _floatingImages.Clear();
+                _transparentWindows.Clear();
             }
             
             _disposed = true;
