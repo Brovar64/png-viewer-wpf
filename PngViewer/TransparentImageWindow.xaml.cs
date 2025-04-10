@@ -24,6 +24,12 @@ namespace PngViewer
         private bool _isDragging = false;
         private Point _dragStartPoint;
         
+        // Zoom related fields
+        private double _scale = 1.0;
+        private const double SCALE_STEP = 0.1;
+        private const double MIN_SCALE = 0.1;
+        private const double MAX_SCALE = 10.0;
+        
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
         private const int GWL_EXSTYLE = -20;
@@ -87,9 +93,6 @@ namespace PngViewer
             // Register mouse events for custom dragging
             this.MouseMove += Window_MouseMove;
             this.MouseLeftButtonUp += Window_MouseLeftButtonUp;
-            
-            // Explicitly register the mouse wheel event
-            this.MouseWheel += Window_MouseWheel;
             
             // Make sure it stays on top
             this.Topmost = true;
@@ -209,12 +212,59 @@ namespace PngViewer
             }
         }
         
+        private void btnZoomIn_Click(object sender, RoutedEventArgs e)
+        {
+            ChangeScale(_scale + SCALE_STEP);
+        }
+        
+        private void btnZoomOut_Click(object sender, RoutedEventArgs e)
+        {
+            ChangeScale(_scale - SCALE_STEP);
+        }
+        
+        private void ChangeScale(double newScale)
+        {
+            if (_originalImage == null)
+                return;
+                
+            // Enforce min/max constraints
+            newScale = Math.Max(MIN_SCALE, Math.Min(MAX_SCALE, newScale));
+            
+            // Only update if the scale actually changed
+            if (Math.Abs(_scale - newScale) < 0.001)
+                return;
+                
+            // Update scale
+            _scale = newScale;
+            
+            // Apply the new scale
+            ApplyScale();
+        }
+        
+        private void ApplyScale()
+        {
+            // Update the image size
+            mainImage.Width = _originalImage.PixelWidth * _scale;
+            mainImage.Height = _originalImage.PixelHeight * _scale;
+            
+            // Make the window match the scaled image size
+            SizeToContent = SizeToContent.Manual;
+            Width = mainImage.Width;
+            Height = mainImage.Height + 40; // Add space for buttons
+            
+            // Force layout update
+            UpdateLayout();
+        }
+        
         private void Window_MouseWheel(object sender, MouseWheelEventArgs e)
         {
-            // Show a message box to verify the event is firing
-            MessageBox.Show("Mouse wheel event fired! Delta: " + e.Delta);
+            // Message box to test if event is firing
+            MessageBox.Show("Mouse wheel event detected! Delta: " + e.Delta);
             
-            // Mark event as handled
+            // Change scale based on wheel direction
+            double newScale = _scale + (e.Delta > 0 ? SCALE_STEP : -SCALE_STEP);
+            ChangeScale(newScale);
+            
             e.Handled = true;
         }
         
@@ -326,9 +376,6 @@ namespace PngViewer
                 Deactivated -= TransparentImageWindow_Deactivated;
                 MouseMove -= Window_MouseMove;
                 MouseLeftButtonUp -= Window_MouseLeftButtonUp;
-                
-                // Be explicit about removing the MouseWheel handler
-                MouseWheel -= Window_MouseWheel;
             }
             
             _disposed = true;
