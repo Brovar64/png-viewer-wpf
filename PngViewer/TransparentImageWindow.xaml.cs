@@ -24,6 +24,12 @@ namespace PngViewer
         private bool _isDragging = false;
         private Point _dragStartPoint;
         
+        // Zoom related fields
+        private double _zoomFactor = 1.0;
+        private const double ZOOM_FACTOR_STEP = 0.1;
+        private const double MIN_ZOOM = 0.1;
+        private const double MAX_ZOOM = 10.0;
+        
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
         private const int GWL_EXSTYLE = -20;
@@ -187,12 +193,7 @@ namespace PngViewer
                 mainImage.Source = _originalImage;
                 
                 // Auto-size the window to fit the image exactly
-                mainImage.Width = _originalImage.PixelWidth;
-                mainImage.Height = _originalImage.PixelHeight;
-                
-                // Update window size to exactly match the image
-                Width = _originalImage.PixelWidth;
-                Height = _originalImage.PixelHeight;
+                ApplyZoom();
                 
                 // Ensure window is centered on screen
                 CenterWindowOnScreen();
@@ -206,16 +207,77 @@ namespace PngViewer
             }
         }
         
+        private void ApplyZoom()
+        {
+            if (_originalImage == null)
+                return;
+                
+            // Update the image dimensions based on zoom factor
+            mainImage.Width = _originalImage.PixelWidth * _zoomFactor;
+            mainImage.Height = _originalImage.PixelHeight * _zoomFactor;
+            
+            // Update window size to match the zoomed image dimensions
+            Width = mainImage.Width;
+            Height = mainImage.Height;
+            
+            // Force layout update
+            UpdateLayout();
+        }
+        
+        private void Window_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (_originalImage == null)
+                return;
+                
+            // Calculate new zoom factor based on wheel direction
+            double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
+            double newZoomFactor = _zoomFactor + zoomChange;
+            
+            // Apply min/max constraints
+            newZoomFactor = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, newZoomFactor));
+            
+            // Don't update if zoom didn't change
+            if (Math.Abs(_zoomFactor - newZoomFactor) < 0.001)
+                return;
+                
+            // Get the position of the mouse relative to the image
+            Point mousePosition = e.GetPosition(mainImage);
+            
+            // Calculate the relative position (0-1) where the mouse is pointing
+            double relativeX = mousePosition.X / mainImage.Width;
+            double relativeY = mousePosition.Y / mainImage.Height;
+            
+            // Apply the new zoom factor
+            _zoomFactor = newZoomFactor;
+            
+            // Apply zoom to update image and window size
+            ApplyZoom();
+            
+            // Recenter window to keep the mouse position over the same point in the image
+            // This makes zooming feel more natural as it zooms in on the cursor position
+            double newLeft = Left - ((mainImage.Width * relativeX) - mousePosition.X);
+            double newTop = Top - ((mainImage.Height * relativeY) - mousePosition.Y);
+            
+            Left = newLeft;
+            Top = newTop;
+            
+            // Mark event as handled
+            e.Handled = true;
+            
+            // Ensure window stays topmost
+            this.Topmost = true;
+        }
+        
         private void CenterWindowOnScreen()
         {
             double screenWidth = SystemParameters.PrimaryScreenWidth;
             double screenHeight = SystemParameters.PrimaryScreenHeight;
             
-            if (_originalImage != null)
-            {
-                Left = (screenWidth - _originalImage.PixelWidth) / 2;
-                Top = (screenHeight - _originalImage.PixelHeight) / 2;
-            }
+            double windowWidth = Width;
+            double windowHeight = Height;
+            
+            Left = (screenWidth - windowWidth) / 2;
+            Top = (screenHeight - windowHeight) / 2;
         }
         
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
