@@ -205,14 +205,13 @@ namespace PngViewer
 
         private void ScrollViewer_MouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (Keyboard.Modifiers == ModifierKeys.Control)
-            {
-                // Determine zoom direction based on wheel delta
-                double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
-                ZoomImage(_zoomFactor + zoomChange);
-                
-                e.Handled = true;
-            }
+            // Always zoom with the mouse wheel, no Ctrl key required
+            // Determine zoom direction based on wheel delta
+            double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
+            ZoomImage(_zoomFactor + zoomChange);
+            
+            // Mark as handled to prevent ScrollViewer's default scrolling behavior
+            e.Handled = true;
         }
 
         private void ScrollViewer_MouseMove(object sender, MouseEventArgs e)
