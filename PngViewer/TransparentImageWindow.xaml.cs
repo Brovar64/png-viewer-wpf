@@ -19,6 +19,7 @@ namespace PngViewer
         private bool _disposed = false;
         private readonly BackgroundWorker _imageLoader = new BackgroundWorker();
         private readonly DispatcherTimer _visibilityTimer;
+        private readonly DispatcherTimer _instructionsTimer;
         
         // Dragging related fields
         private bool _isDragging = false;
@@ -26,6 +27,9 @@ namespace PngViewer
         
         // Zoom related fields
         private double _scale = 1.0;
+        private const double SCALE_STEP = 0.2;
+        private const double MIN_SCALE = 0.1;
+        private const double MAX_SCALE = 10.0;
         
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
@@ -82,6 +86,17 @@ namespace PngViewer
             };
             _visibilityTimer.Tick += VisibilityTimer_Tick;
             
+            // Setup instructions timer to hide the instructions after a few seconds
+            _instructionsTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(5)
+            };
+            _instructionsTimer.Tick += (s, e) =>
+            {
+                instructionsText.Visibility = Visibility.Collapsed;
+                _instructionsTimer.Stop();
+            };
+            
             // Apply additional settings after window is loaded
             this.Loaded += TransparentImageWindow_Loaded;
             this.Activated += TransparentImageWindow_Activated;
@@ -119,6 +134,9 @@ namespace PngViewer
             
             // Start visibility timer
             _visibilityTimer.Start();
+            
+            // Start instructions timer
+            _instructionsTimer.Start();
         }
         
         private void TransparentImageWindow_Activated(object sender, EventArgs e)
@@ -189,14 +207,13 @@ namespace PngViewer
                 _originalImage = bitmap;
                 mainImage.Source = _originalImage;
                 
-                // Set initial width and height of window to match image
-                Width = _originalImage.PixelWidth;
-                Height = _originalImage.PixelHeight;
+                // Set initial size
+                ApplyScale();
                 
                 // Center on screen
                 CenterWindowOnScreen();
                 
-                // Make sure it's visible and on top
+                // Make sure it's visible and on top after resizing
                 if (_windowHandle != IntPtr.Zero)
                 {
                     SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
@@ -205,39 +222,60 @@ namespace PngViewer
             }
         }
         
-        private void ZoomInButton_Click(object sender, RoutedEventArgs e)
+        private void ZoomIn()
         {
             if (_originalImage == null) return;
             
             // Increase scale
-            _scale += 0.1;
-            if (_scale > 10.0) _scale = 10.0; // Maximum scale
+            _scale += SCALE_STEP;
+            if (_scale > MAX_SCALE) _scale = MAX_SCALE;
             
-            // Apply the zoom
-            ApplyZoom();
+            // Apply the scale
+            ApplyScale();
+            
+            // Show brief feedback
+            ShowScaleFeedback();
         }
         
-        private void ZoomOutButton_Click(object sender, RoutedEventArgs e)
+        private void ZoomOut()
         {
             if (_originalImage == null) return;
             
             // Decrease scale
-            _scale -= 0.1;
-            if (_scale < 0.1) _scale = 0.1; // Minimum scale
+            _scale -= SCALE_STEP;
+            if (_scale < MIN_SCALE) _scale = MIN_SCALE;
             
-            // Apply the zoom
-            ApplyZoom();
+            // Apply the scale
+            ApplyScale();
+            
+            // Show brief feedback
+            ShowScaleFeedback();
         }
         
-        private void ApplyZoom()
+        private void ShowScaleFeedback()
+        {
+            // Update the instructions text to show current scale
+            instructionsText.Text = $"Scale: {_scale:F1}x";
+            instructionsText.Visibility = Visibility.Visible;
+            
+            // Restart the timer to hide the feedback after a delay
+            _instructionsTimer.Stop();
+            _instructionsTimer.Start();
+        }
+        
+        private void ApplyScale()
         {
             try
             {
-                // Update window dimensions based on scaled image size
-                Width = _originalImage.PixelWidth * _scale;
-                Height = _originalImage.PixelHeight * _scale;
+                // Update the image dimensions
+                mainImage.Width = _originalImage.PixelWidth * _scale;
+                mainImage.Height = _originalImage.PixelHeight * _scale;
                 
-                // Tell the window to adjust its size
+                // Update window size to match the image
+                Width = mainImage.Width;
+                Height = mainImage.Height;
+                
+                // Force layout update
                 UpdateLayout();
             }
             catch (Exception ex)
@@ -303,17 +341,32 @@ namespace PngViewer
         
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
-            // Close window on Escape or Space
-            if (e.Key == Key.Escape || e.Key == Key.Space)
+            // Handle keyboard shortcuts
+            if (e.Key == Key.OemPlus || e.Key == Key.Add)
             {
+                // Plus key - zoom in
+                ZoomIn();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.OemMinus || e.Key == Key.Subtract)
+            {
+                // Minus key - zoom out
+                ZoomOut();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape || e.Key == Key.Space)
+            {
+                // Close window on Escape or Space
                 Close();
+                e.Handled = true;
             }
         }
         
         protected override void OnClosing(CancelEventArgs e)
         {
-            // Stop the visibility timer
+            // Stop the timers
             _visibilityTimer.Stop();
+            _instructionsTimer.Stop();
             
             base.OnClosing(e);
             Dispose();
@@ -332,8 +385,9 @@ namespace PngViewer
                 
             if (disposing)
             {
-                // Stop the visibility timer
+                // Stop the timers
                 _visibilityTimer.Stop();
+                _instructionsTimer.Stop();
                 
                 // Cancel any ongoing operations
                 if (_imageLoader.IsBusy)
