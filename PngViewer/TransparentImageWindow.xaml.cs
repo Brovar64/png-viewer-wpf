@@ -20,6 +20,10 @@ namespace PngViewer
         private readonly BackgroundWorker _imageLoader = new BackgroundWorker();
         private readonly DispatcherTimer _visibilityTimer;
         
+        // Dragging related fields
+        private bool _isDragging = false;
+        private Point _dragStartPoint;
+        
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
         private const int GWL_EXSTYLE = -20;
@@ -79,6 +83,10 @@ namespace PngViewer
             this.Loaded += TransparentImageWindow_Loaded;
             this.Activated += TransparentImageWindow_Activated;
             this.Deactivated += TransparentImageWindow_Deactivated;
+            
+            // Register mouse events for custom dragging
+            this.MouseMove += Window_MouseMove;
+            this.MouseLeftButtonUp += Window_MouseLeftButtonUp;
             
             // Make sure it stays on top
             this.Topmost = true;
@@ -212,11 +220,47 @@ namespace PngViewer
         
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            // Allow dragging the window by clicking anywhere on the image
-            DragMove();
+            // Start the custom dragging operation
+            _isDragging = true;
+            _dragStartPoint = e.GetPosition(this);
+            this.CaptureMouse();
             
-            // Ensure it remains topmost after drag
+            // Ensure it remains topmost
             this.Topmost = true;
+            
+            e.Handled = true;
+        }
+        
+        private void Window_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_isDragging)
+            {
+                // Get current mouse position relative to window
+                Point currentPosition = e.GetPosition(this);
+                
+                // Calculate the offset from where drag started
+                Vector offset = currentPosition - _dragStartPoint;
+                
+                // Calculate new window position
+                double newLeft = Left + offset.X;
+                double newTop = Top + offset.Y;
+                
+                // Apply the new position
+                Left = newLeft;
+                Top = newTop;
+                
+                // Ensure the window stays topmost
+                this.Topmost = true;
+            }
+        }
+        
+        private void Window_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_isDragging)
+            {
+                _isDragging = false;
+                this.ReleaseMouseCapture();
+            }
         }
         
         private void Window_KeyDown(object sender, KeyEventArgs e)
@@ -268,6 +312,8 @@ namespace PngViewer
                 Loaded -= TransparentImageWindow_Loaded;
                 Activated -= TransparentImageWindow_Activated;
                 Deactivated -= TransparentImageWindow_Deactivated;
+                MouseMove -= Window_MouseMove;
+                MouseLeftButtonUp -= Window_MouseLeftButtonUp;
             }
             
             _disposed = true;
