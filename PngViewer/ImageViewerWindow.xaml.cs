@@ -221,8 +221,11 @@ namespace PngViewer
             }
         }
 
-        private void ScrollViewer_MouseWheel(object sender, MouseWheelEventArgs e)
+        private void Window_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
+            if (_transformedImage == null)
+                return;
+                
             // Get the cursor position relative to the ScrollViewer
             Point cursorPosition = e.GetPosition(scrollViewer);
             
@@ -233,6 +236,13 @@ namespace PngViewer
             ZoomImage(_zoomFactor + zoomChange, cursorPosition);
             
             // Mark the event as handled to prevent the ScrollViewer from scrolling
+            e.Handled = true;
+        }
+
+        // Old event handler - kept for reference but not used anymore
+        private void ScrollViewer_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // We're now using Window_PreviewMouseWheel instead
             e.Handled = true;
         }
 
