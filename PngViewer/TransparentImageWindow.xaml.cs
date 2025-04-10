@@ -207,8 +207,9 @@ namespace PngViewer
                 _originalImage = bitmap;
                 mainImage.Source = _originalImage;
                 
-                // Set initial size
-                ApplyScale();
+                // Initialize RenderTransform
+                ScaleTransform transform = new ScaleTransform(1, 1);
+                mainImage.RenderTransform = transform;
                 
                 // Center on screen
                 CenterWindowOnScreen();
@@ -267,16 +268,9 @@ namespace PngViewer
         {
             try
             {
-                // Update the image dimensions
-                mainImage.Width = _originalImage.PixelWidth * _scale;
-                mainImage.Height = _originalImage.PixelHeight * _scale;
-                
-                // Update window size to match the image
-                Width = mainImage.Width;
-                Height = mainImage.Height;
-                
-                // Force layout update
-                UpdateLayout();
+                // Apply the scale transform directly to the image
+                ScaleTransform transform = new ScaleTransform(_scale, _scale);
+                mainImage.RenderTransform = transform;
             }
             catch (Exception ex)
             {
@@ -290,8 +284,11 @@ namespace PngViewer
             double screenWidth = SystemParameters.PrimaryScreenWidth;
             double screenHeight = SystemParameters.PrimaryScreenHeight;
             
-            Left = (screenWidth - Width) / 2;
-            Top = (screenHeight - Height) / 2;
+            if (_originalImage != null)
+            {
+                Left = (screenWidth - _originalImage.PixelWidth) / 2;
+                Top = (screenHeight - _originalImage.PixelHeight) / 2;
+            }
         }
         
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
