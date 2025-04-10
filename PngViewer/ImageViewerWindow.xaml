@@ -67,7 +67,7 @@
                       HorizontalScrollBarVisibility="Auto" 
                       VerticalScrollBarVisibility="Auto"
                       Background="#EEEEEE"
-                      MouseWheel="ScrollViewer_MouseWheel"
+                      PreviewMouseWheel="ScrollViewer_MouseWheel"
                       MouseMove="ScrollViewer_MouseMove"
                       PreviewMouseLeftButtonDown="ScrollViewer_PreviewMouseLeftButtonDown"
                       PreviewMouseLeftButtonUp="ScrollViewer_PreviewMouseLeftButtonUp">
