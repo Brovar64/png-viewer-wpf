@@ -19,35 +19,32 @@
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
         KeyDown="Window_KeyDown">
     
+    <!-- No padding, margins, or borders -->
+    <Window.Template>
+        <ControlTemplate TargetType="{x:Type Window}">
+            <ContentPresenter Margin="0" Content="{TemplateBinding Content}" />
+        </ControlTemplate>
+    </Window.Template>
+    
+    <!-- The only element is the image itself - no other UI elements -->
     <Grid>
-        <!-- The image -->
         <Image x:Name="mainImage" 
-               Stretch="Uniform" 
+               Stretch="None" 
                Margin="0"
                RenderOptions.BitmapScalingMode="HighQuality"
                SnapsToDevicePixels="True" 
                UseLayoutRounding="True"/>
                
-        <!-- Simple zoom buttons -->
-        <StackPanel HorizontalAlignment="Center" 
-                    VerticalAlignment="Bottom"
-                    Orientation="Horizontal"
-                    Background="#80000000"
-                    Margin="0,0,0,10">
-            <Button Content="-" 
-                    Width="30" Height="30" 
-                    Margin="5" 
-                    Background="White"
-                    Foreground="Black"
-                    FontWeight="Bold"
-                    Click="ZoomOutButton_Click"/>
-            <Button Content="+" 
-                    Width="30" Height="30" 
-                    Margin="5" 
-                    Background="White"
-                    Foreground="Black"
-                    FontWeight="Bold"
-                    Click="ZoomInButton_Click"/>
-        </StackPanel>
+        <!-- Text instructions overlay that appears briefly -->
+        <TextBlock x:Name="instructionsText"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Bottom"
+                   Margin="0,0,0,10"
+                   Padding="5"
+                   Background="#80000000"
+                   Foreground="White"
+                   FontWeight="Bold"
+                   Text="Press + to zoom in, - to zoom out"
+                   Visibility="Visible"/>
     </Grid>
 </Window>
