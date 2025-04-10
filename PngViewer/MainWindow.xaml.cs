@@ -33,8 +33,8 @@ namespace PngViewer
         // Store the current selected thumbnail for context menu
         private PngFile _currentContextPngFile;
         
-        // Keep track of open transparent windows
-        private List<TransparentImageWindow> _transparentWindows = new List<TransparentImageWindow>();
+        // Keep track of open transparent windows with their closed state
+        private Dictionary<TransparentImageWindow, bool> _transparentWindows = new Dictionary<TransparentImageWindow, bool>();
         
         // Placeholder for failed thumbnails
         private static BitmapImage _placeholderImage;
@@ -131,13 +131,27 @@ namespace PngViewer
                 GC.Collect();
             }
             
-            // Check for disposed transparent windows and remove them from the list
-            for (int i = _transparentWindows.Count - 1; i >= 0; i--)
+            // Clean up closed transparent windows
+            CleanupClosedWindows();
+        }
+        
+        private void CleanupClosedWindows()
+        {
+            // Get all windows marked as closed
+            List<TransparentImageWindow> windowsToRemove = new List<TransparentImageWindow>();
+            
+            foreach (var kvp in _transparentWindows)
             {
-                if (_transparentWindows[i]._disposed)
+                if (kvp.Value) // If marked as closed
                 {
-                    _transparentWindows.RemoveAt(i);
+                    windowsToRemove.Add(kvp.Key);
                 }
+            }
+            
+            // Remove them from the dictionary
+            foreach (var window in windowsToRemove)
+            {
+                _transparentWindows.Remove(window);
             }
         }
 
@@ -493,13 +507,15 @@ namespace PngViewer
                         var transparentWindow = new TransparentImageWindow(pngFile.FilePath);
                         
                         // Keep a strong reference to prevent garbage collection
-                        _transparentWindows.Add(transparentWindow);
+                        _transparentWindows.Add(transparentWindow, false); // Not closed yet
                         
                         // Set up window closing event to help with cleanup
                         transparentWindow.Closed += (s, args) =>
                         {
-                            if (s is TransparentImageWindow window)
+                            if (s is TransparentImageWindow window && _transparentWindows.ContainsKey(window))
                             {
+                                // Mark as closed for later cleanup
+                                _transparentWindows[window] = true;
                                 window.Dispose();
                             }
                         };
@@ -559,13 +575,15 @@ namespace PngViewer
                     var transparentWindow = new TransparentImageWindow(_currentContextPngFile.FilePath);
                     
                     // Keep a strong reference to prevent garbage collection
-                    _transparentWindows.Add(transparentWindow);
+                    _transparentWindows.Add(transparentWindow, false); // Not closed yet
                     
                     // Set up window closing event to help with cleanup
                     transparentWindow.Closed += (s, args) =>
                     {
-                        if (s is TransparentImageWindow window)
+                        if (s is TransparentImageWindow window && _transparentWindows.ContainsKey(window))
                         {
+                            // Mark as closed for later cleanup
+                            _transparentWindows[window] = true;
                             window.Dispose();
                         }
                     };
@@ -616,9 +634,13 @@ namespace PngViewer
                 _pngFiles.Clear();
                 
                 // Dispose any open transparent windows
-                foreach (var window in _transparentWindows)
+                foreach (var kvp in _transparentWindows)
                 {
-                    window.Dispose();
+                    var window = kvp.Key;
+                    if (!kvp.Value) // Only dispose if not already marked as closed/disposed
+                    {
+                        window.Dispose();
+                    }
                 }
                 _transparentWindows.Clear();
             }
