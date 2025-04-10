@@ -19,32 +19,30 @@
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
         KeyDown="Window_KeyDown">
     
-    <!-- No padding, margins, or borders -->
-    <Window.Template>
-        <ControlTemplate TargetType="{x:Type Window}">
-            <ContentPresenter Margin="0" Content="{TemplateBinding Content}" />
-        </ControlTemplate>
-    </Window.Template>
-    
-    <!-- The only element is the image itself - no other UI elements -->
     <Grid>
+        <!-- Image with RenderTransform set to preserve transform point -->
         <Image x:Name="mainImage" 
-               Stretch="None" 
-               Margin="0"
-               RenderOptions.BitmapScalingMode="HighQuality"
-               SnapsToDevicePixels="True" 
-               UseLayoutRounding="True"/>
+              RenderTransformOrigin="0.5,0.5"
+              Stretch="None" 
+              Margin="0"
+              RenderOptions.BitmapScalingMode="HighQuality"
+              SnapsToDevicePixels="True" 
+              UseLayoutRounding="True">
+            <Image.RenderTransform>
+                <ScaleTransform ScaleX="1" ScaleY="1" />
+            </Image.RenderTransform>
+        </Image>
                
         <!-- Text instructions overlay that appears briefly -->
         <TextBlock x:Name="instructionsText"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Bottom"
-                   Margin="0,0,0,10"
-                   Padding="5"
-                   Background="#80000000"
-                   Foreground="White"
-                   FontWeight="Bold"
-                   Text="Press + to zoom in, - to zoom out"
-                   Visibility="Visible"/>
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Bottom"
+                  Margin="0,0,0,10"
+                  Padding="5"
+                  Background="#80000000"
+                  Foreground="White"
+                  FontWeight="Bold"
+                  Text="Press + to zoom in, - to zoom out"
+                  Visibility="Visible"/>
     </Grid>
 </Window>
