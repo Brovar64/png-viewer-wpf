@@ -106,6 +106,9 @@ namespace PngViewer
             this.MouseMove += Window_MouseMove;
             this.MouseLeftButtonUp += Window_MouseLeftButtonUp;
             
+            // Ensure image scaling is correct
+            mainImage.Stretch = Stretch.Uniform;
+            
             // Make sure it stays on top
             this.Topmost = true;
             
@@ -206,6 +209,9 @@ namespace PngViewer
                 // Set the image source
                 mainImage.Source = _originalImage;
                 
+                // Make sure Stretch is set correctly
+                mainImage.Stretch = Stretch.Uniform;
+                
                 // Set initial window size to match original image
                 Width = _originalImage.PixelWidth;
                 Height = _originalImage.PixelHeight;
@@ -295,7 +301,7 @@ namespace PngViewer
                 mainCanvas.Width = newWidth;
                 mainCanvas.Height = newHeight;
                 
-                // Keep the same source image - we'll let WPF do the scaling
+                // Keep the same source image - using Stretch.Uniform
                 mainImage.Width = newWidth;
                 mainImage.Height = newHeight;
                 
