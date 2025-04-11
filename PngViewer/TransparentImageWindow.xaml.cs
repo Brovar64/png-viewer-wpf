@@ -110,10 +110,7 @@ namespace PngViewer
             // Make sure it stays on top
             this.Topmost = true;
             
-            // First create the fullscreen window
-            CreateFullscreenWindow();
-            
-            // Then start loading the image
+            // Start loading the image first
             _imageLoader.RunWorkerAsync(imagePath);
         }
 
@@ -129,9 +126,12 @@ namespace PngViewer
             var exStyle = GetWindowLong(_windowHandle, GWL_EXSTYLE);
             SetWindowLong(_windowHandle, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
             
-            // Ensure window is visible and topmost, but below our fullscreen window
-            SetWindowPos(_windowHandle, (IntPtr)HWND_NOTOPMOST, 0, 0, 0, 0, 
+            // Ensure window is visible and topmost
+            SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            
+            // Create the fullscreen window after the main window is loaded
+            CreateFullscreenWindow();
             
             // Start visibility timer
             _visibilityTimer.Start();
@@ -140,70 +140,112 @@ namespace PngViewer
         private void CreateFullscreenWindow()
         {
             // Create a truly fullscreen window that covers ALL screens
-            double totalWidth = 0;
-            double totalHeight = 0;
-            double minX = 0;
-            double minY = 0;
+            double maxRight = 0;
+            double maxBottom = 0;
+            double minLeft = 0;
+            double minTop = 0;
             
-            // Find the bounding rectangle that encompasses all screens
+            // First pass: find the bounds of all screens
             foreach (WinForms.Screen screen in WinForms.Screen.AllScreens)
             {
-                if (screen.Bounds.Left < minX)
-                    minX = screen.Bounds.Left;
-                if (screen.Bounds.Top < minY)
-                    minY = screen.Bounds.Top;
-                
-                if (screen.Bounds.Right > totalWidth)
-                    totalWidth = screen.Bounds.Right;
-                if (screen.Bounds.Bottom > totalHeight)
-                    totalHeight = screen.Bounds.Bottom;
+                if (screen.Bounds.Left < minLeft)
+                    minLeft = screen.Bounds.Left;
+                    
+                if (screen.Bounds.Top < minTop)
+                    minTop = screen.Bounds.Top;
+                    
+                if (screen.Bounds.Right > maxRight)
+                    maxRight = screen.Bounds.Right;
+                    
+                if (screen.Bounds.Bottom > maxBottom)
+                    maxBottom = screen.Bounds.Bottom;
             }
+            
+            // Calculate total dimensions
+            double totalWidth = maxRight - minLeft;
+            double totalHeight = maxBottom - minTop;
             
             // Create the window that covers everything
             _fullscreenWindow = new Window
             {
                 WindowStyle = WindowStyle.None,
                 AllowsTransparency = true,
-                Background = new WinMedia.SolidColorBrush(WinMedia.Color.FromArgb(1, 0, 0, 0)), // Completely transparent
+                Background = new WinMedia.SolidColorBrush(WinMedia.Color.FromArgb(1, 255, 0, 0)), // Very slightly red for debug
                 Topmost = true,
                 ResizeMode = ResizeMode.NoResize,
                 ShowInTaskbar = false,
                 Title = "Fullscreen Capture",
-                Width = Math.Abs(totalWidth),
-                Height = Math.Abs(totalHeight),
-                Left = minX,
-                Top = minY
+                Width = totalWidth,
+                Height = totalHeight,
+                Left = minLeft,
+                Top = minTop
             };
             
-            // Disable window interactions
-            _fullscreenWindow.Focusable = false;
-            _fullscreenWindow.IsHitTestVisible = true; // We need this to capture mouse wheel events
+            // Add a simple canvas as content
+            var canvas = new System.Windows.Controls.Canvas();
+            _fullscreenWindow.Content = canvas;
             
-            // Wire up mouse wheel event to be forwarded to our window
-            _fullscreenWindow.MouseWheel += HandleMouseWheel;
+            // Disable focusing but enable hit testing
+            _fullscreenWindow.Focusable = false;
+            canvas.Focusable = false;
+            
+            // Wire up mouse wheel event directly to the canvas
+            canvas.PreviewMouseWheel += (s, e) =>
+            {
+                ApplyZoom(e.Delta);
+                e.Handled = true;
+            };
             
             // Close the fullscreen window when this window closes
-            this.Closed += (s, e) => 
-            {
-                if (_fullscreenWindow != null)
-                {
-                    _fullscreenWindow.Close();
-                    _fullscreenWindow = null;
-                }
-            };
+            this.Closed += (s, e) => CloseFullscreenWindow();
             
             // Show the window
             _fullscreenWindow.Show();
             
-            // Apply window style changes to make it capture events but be otherwise invisible
+            // Apply window style changes to make it transparent to input except for wheel
             var hwnd = new WinInterop.WindowInteropHelper(_fullscreenWindow).Handle;
             var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-            SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED);
-            SetLayeredWindowAttributes(hwnd, 0, 1, LWA_ALPHA);
+            SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW | WS_EX_LAYERED);
+            
+            // Set high transparency
+            SetLayeredWindowAttributes(hwnd, 0, 10, LWA_ALPHA); // Slightly visible for debug
             
             // Make sure it's on top of everything
             SetWindowPos(hwnd, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                
+            // Ensure our PNG window is below it
+            SetWindowPos(_windowHandle, hwnd, 0, 0, 0, 0, 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+        
+        private void ApplyZoom(int delta)
+        {
+            // Ensure we're on the UI thread
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.Invoke(() => ApplyZoom(delta));
+                return;
+            }
+            
+            // Calculate new zoom factor based on wheel direction
+            double zoomChange = delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
+            double newZoom = _currentZoom + zoomChange;
+            
+            // Enforce min/max zoom limits
+            newZoom = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, newZoom));
+            
+            // Only update if the zoom actually changed
+            if (Math.Abs(_currentZoom - newZoom) > 0.001)
+            {
+                _currentZoom = newZoom;
+                
+                // Apply the new zoom factor to the ScaleTransform
+                imageScale.ScaleX = _currentZoom;
+                imageScale.ScaleY = _currentZoom;
+                
+                System.Diagnostics.Debug.WriteLine($"Zoom changed to: {_currentZoom}");
+            }
         }
         
         private void TransparentImageWindow_Activated(object sender, EventArgs e)
@@ -311,19 +353,11 @@ namespace PngViewer
                 // Ensure window is centered on screen
                 CenterWindowOnScreen();
                 
-                // Make sure it's visible but still below our fullscreen window
+                // Make sure it's visible
                 if (_windowHandle != IntPtr.Zero)
                 {
-                    SetWindowPos(_windowHandle, (IntPtr)HWND_NOTOPMOST, 0, 0, 0, 0, 
+                    SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
                         SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-                    
-                    // Make sure fullscreen window is above
-                    if (_fullscreenWindow != null)
-                    {
-                        var hwnd = new WinInterop.WindowInteropHelper(_fullscreenWindow).Handle;
-                        SetWindowPos(hwnd, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-                    }
                 }
             }
         }
@@ -385,28 +419,6 @@ namespace PngViewer
             }
         }
         
-        private void HandleMouseWheel(object sender, WinInput.MouseWheelEventArgs e)
-        {
-            // Calculate new zoom factor based on wheel direction
-            double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
-            double newZoom = _currentZoom + zoomChange;
-            
-            // Enforce min/max zoom limits
-            newZoom = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, newZoom));
-            
-            // Only update if the zoom actually changed
-            if (Math.Abs(_currentZoom - newZoom) > 0.001)
-            {
-                _currentZoom = newZoom;
-                
-                // Apply the new zoom factor to the ScaleTransform
-                imageScale.ScaleX = _currentZoom;
-                imageScale.ScaleY = _currentZoom;
-                
-                e.Handled = true;
-            }
-        }
-        
         private void Window_KeyDown(object sender, WinInput.KeyEventArgs e)
         {
             // Close window on Escape or Space
@@ -418,6 +430,15 @@ namespace PngViewer
             else if (e.Key == WinInput.Key.R)
             {
                 ResetZoom();
+            }
+            // Debug key - add/remove 10% zoom
+            else if (e.Key == WinInput.Key.Add || e.Key == WinInput.Key.OemPlus)
+            {
+                ApplyZoom(120); // Simulate scroll up
+            }
+            else if (e.Key == WinInput.Key.Subtract || e.Key == WinInput.Key.OemMinus)
+            {
+                ApplyZoom(-120); // Simulate scroll down
             }
         }
         
