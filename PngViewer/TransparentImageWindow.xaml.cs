@@ -34,9 +34,9 @@ namespace PngViewer
         private double _currentZoom = 1.0;
         
         // Bounding box related fields
-        private bool _isFullScreenBoundingBox = false;
         private List<ScreenInfo> _screens = new List<ScreenInfo>();
-        private Window _activeScreenBorderWindow = null;
+        private Window _fullscreenBorderWindow = null;
+        private bool _boundingBoxVisible = true;
         
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
@@ -255,10 +255,6 @@ namespace PngViewer
                 Width = _originalImage.PixelWidth;
                 Height = _originalImage.PixelHeight;
                 
-                // Set the border size to match the image dimensions (for non-fullscreen mode)
-                boundingBoxBorder.Width = _originalImage.PixelWidth;
-                boundingBoxBorder.Height = _originalImage.PixelHeight;
-                
                 // Ensure window is centered on screen
                 CenterWindowOnScreen();
                 
@@ -268,6 +264,9 @@ namespace PngViewer
                     SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
                         SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
                 }
+                
+                // Show fullscreen border immediately
+                UpdateFullscreenBoundingBox();
             }
         }
         
@@ -314,10 +313,10 @@ namespace PngViewer
                 Left = newLeft;
                 Top = newTop;
                 
-                // If we have a full screen border, update it based on new window position
-                if (_isFullScreenBoundingBox && Math.Abs(_currentZoom - 1.0) > 0.001)
+                // If we have a fullscreen border and we're zoomed, update it based on new window position
+                if (_boundingBoxVisible && Math.Abs(_currentZoom - 1.0) > 0.001)
                 {
-                    UpdateFullScreenBoundingBox();
+                    UpdateFullscreenBoundingBox();
                 }
                 
                 // Ensure the window stays topmost
@@ -352,7 +351,7 @@ namespace PngViewer
                 imageScale.ScaleX = _currentZoom;
                 imageScale.ScaleY = _currentZoom;
                 
-                // Show the bounding box if zoomed
+                // Update bounding box if needed
                 UpdateBoundingBoxVisibility();
                 
                 e.Handled = true;
@@ -361,31 +360,20 @@ namespace PngViewer
         
         private void UpdateBoundingBoxVisibility()
         {
-            // Show the bounding box only when zoomed in or out from 100%
-            if (Math.Abs(_currentZoom - 1.0) > 0.001)
+            // Show the fullscreen bounding box only when zoomed in or out from 100%
+            if (Math.Abs(_currentZoom - 1.0) > 0.001 && _boundingBoxVisible)
             {
-                if (_isFullScreenBoundingBox)
-                {
-                    // Update full screen bounding box
-                    UpdateFullScreenBoundingBox();
-                    boundingBoxBorder.Visibility = Visibility.Collapsed;
-                }
-                else
-                {
-                    // Show regular bounding box
-                    boundingBoxBorder.Visibility = Visibility.Visible;
-                    CloseFullScreenBoundingBox();
-                }
+                // Update fullscreen bounding box
+                UpdateFullscreenBoundingBox();
             }
             else
             {
-                // At 1.0 zoom, hide all bounding boxes
-                boundingBoxBorder.Visibility = Visibility.Collapsed;
-                CloseFullScreenBoundingBox();
+                // At 1.0 zoom or if bounding box is hidden, close the fullscreen bounding box
+                CloseFullscreenBoundingBox();
             }
         }
         
-        private void UpdateFullScreenBoundingBox()
+        private void UpdateFullscreenBoundingBox()
         {
             // First, ensure we have the latest screen info
             CollectScreenInfo();
@@ -394,10 +382,10 @@ namespace PngViewer
             var currentScreen = GetCurrentScreen();
             
             // Close existing border window if it exists
-            CloseFullScreenBoundingBox();
+            CloseFullscreenBoundingBox();
             
             // Create a new border window for the current screen
-            _activeScreenBorderWindow = new Window
+            _fullscreenBorderWindow = new Window
             {
                 WindowStyle = WindowStyle.None,
                 AllowsTransparency = true,
@@ -420,54 +408,46 @@ namespace PngViewer
                 Background = Brushes.Transparent
             };
             
-            _activeScreenBorderWindow.Content = border;
+            _fullscreenBorderWindow.Content = border;
             
             // Add an event handler to close the border window when the main window closes
-            _activeScreenBorderWindow.Closed += (s, e) => 
+            _fullscreenBorderWindow.Closed += (s, e) => 
             {
-                _activeScreenBorderWindow = null;
+                _fullscreenBorderWindow = null;
             };
             
             // Show the window
-            _activeScreenBorderWindow.Show();
+            _fullscreenBorderWindow.Show();
             
             // Ensure it's not focusable to prevent stealing focus
-            var hwnd = new WindowInteropHelper(_activeScreenBorderWindow).Handle;
+            var hwnd = new WindowInteropHelper(_fullscreenBorderWindow).Handle;
             var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
             SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
         }
         
-        private void CloseFullScreenBoundingBox()
+        private void CloseFullscreenBoundingBox()
         {
-            if (_activeScreenBorderWindow != null)
+            if (_fullscreenBorderWindow != null)
             {
-                _activeScreenBorderWindow.Close();
-                _activeScreenBorderWindow = null;
+                _fullscreenBorderWindow.Close();
+                _fullscreenBorderWindow = null;
             }
         }
         
-        private void ToggleBoundingBoxMode()
+        private void ToggleBoundingBox()
         {
-            _isFullScreenBoundingBox = !_isFullScreenBoundingBox;
+            _boundingBoxVisible = !_boundingBoxVisible;
             
-            if (_isFullScreenBoundingBox)
+            if (_boundingBoxVisible && Math.Abs(_currentZoom - 1.0) > 0.001)
             {
-                System.Windows.MessageBox.Show(
-                    "Switched to fullscreen bounding box mode.\nThe entire screen will be outlined with a red border.", 
-                    "Bounding Box Mode", 
-                    System.Windows.MessageBoxButton.OK, 
-                    System.Windows.MessageBoxImage.Information);
+                // If bounding box is visible and we're zoomed, show it
+                UpdateFullscreenBoundingBox();
             }
             else
             {
-                System.Windows.MessageBox.Show(
-                    "Switched to regular bounding box mode.\nOnly the original image bounds will be outlined.", 
-                    "Bounding Box Mode", 
-                    System.Windows.MessageBoxButton.OK, 
-                    System.Windows.MessageBoxImage.Information);
+                // Otherwise, close it
+                CloseFullscreenBoundingBox();
             }
-            
-            UpdateBoundingBoxVisibility();
         }
         
         private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -487,39 +467,6 @@ namespace PngViewer
             {
                 ToggleBoundingBox();
             }
-            // Toggle fullscreen bounding box mode on 'F' key
-            else if (e.Key == Key.F)
-            {
-                ToggleBoundingBoxMode();
-            }
-        }
-        
-        private void ToggleBoundingBox()
-        {
-            if (_isFullScreenBoundingBox)
-            {
-                // In fullscreen mode, toggle the fullscreen border
-                if (_activeScreenBorderWindow != null)
-                {
-                    CloseFullScreenBoundingBox();
-                }
-                else if (Math.Abs(_currentZoom - 1.0) > 0.001)
-                {
-                    UpdateFullScreenBoundingBox();
-                }
-            }
-            else
-            {
-                // In regular mode, toggle the normal border
-                if (boundingBoxBorder.Visibility == Visibility.Visible)
-                {
-                    boundingBoxBorder.Visibility = Visibility.Collapsed;
-                }
-                else if (Math.Abs(_currentZoom - 1.0) > 0.001)
-                {
-                    boundingBoxBorder.Visibility = Visibility.Visible;
-                }
-            }
         }
         
         private void ResetZoom()
@@ -528,9 +475,8 @@ namespace PngViewer
             imageScale.ScaleX = 1.0;
             imageScale.ScaleY = 1.0;
             
-            // Hide all bounding boxes at default zoom
-            boundingBoxBorder.Visibility = Visibility.Collapsed;
-            CloseFullScreenBoundingBox();
+            // Hide bounding box at default zoom
+            CloseFullscreenBoundingBox();
         }
         
         protected override void OnClosing(CancelEventArgs e)
@@ -539,7 +485,7 @@ namespace PngViewer
             _visibilityTimer.Stop();
             
             // Close any fullscreen bounding box
-            CloseFullScreenBoundingBox();
+            CloseFullscreenBoundingBox();
             
             base.OnClosing(e);
             Dispose();
@@ -562,7 +508,7 @@ namespace PngViewer
                 _visibilityTimer.Stop();
                 
                 // Close any fullscreen bounding box
-                CloseFullScreenBoundingBox();
+                CloseFullscreenBoundingBox();
                 
                 // Cancel any ongoing operations
                 if (_imageLoader.IsBusy)
