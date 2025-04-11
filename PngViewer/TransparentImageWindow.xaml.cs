@@ -9,6 +9,9 @@ using System.Windows.Interop;
 using System.Runtime.InteropServices;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Forms;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace PngViewer
 {
@@ -30,6 +33,9 @@ namespace PngViewer
         private const double MAX_ZOOM = 10.0;
         private double _currentZoom = 1.0;
         
+        // Fullscreen capture window
+        private Window _captureWindow = null;
+        
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
         private const int GWL_EXSTYLE = -20;
@@ -37,6 +43,8 @@ namespace PngViewer
         private const int WS_EX_TOOLWINDOW = 0x00000080;
         private const int WS_CAPTION = 0x00C00000;
         private const int WS_BORDER = 0x00800000;
+        private const int WS_EX_TRANSPARENT = 0x00000020;
+        private const int WS_EX_LAYERED = 0x00080000;
         
         // Win32 constants for window positioning
         private const uint SWP_NOMOVE = 0x0002;
@@ -44,6 +52,7 @@ namespace PngViewer
         private const uint SWP_NOACTIVATE = 0x0010;
         private const uint SWP_SHOWWINDOW = 0x0040;
         private const int HWND_TOPMOST = -1;
+        private const int HWND_BOTTOM = 1;
         
         [DllImport("user32.dll", SetLastError = true)]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -62,7 +71,12 @@ namespace PngViewer
         [DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
         
+        // SetWindowLong index for opacity
+        [DllImport("user32.dll")]
+        private static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+        
         private const int SW_SHOW = 5;
+        private const uint LWA_ALPHA = 0x00000002;
         
         public bool IsDisposed => _disposed;
         private IntPtr _windowHandle;
@@ -113,15 +127,71 @@ namespace PngViewer
             var exStyle = GetWindowLong(_windowHandle, GWL_EXSTYLE);
             SetWindowLong(_windowHandle, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
             
-            // NOTE: AllowsTransparency is already set in XAML and cannot be changed here
-            // The Background is also set to Transparent in XAML
-            
             // Ensure window is visible and topmost
             SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             
+            // Create the fullscreen capture window
+            CreateCaptureWindow();
+            
             // Start visibility timer
             _visibilityTimer.Start();
+        }
+        
+        private void CreateCaptureWindow()
+        {
+            // Find the screen our window is on
+            var currentScreen = Screen.FromHandle(_windowHandle);
+            
+            // Create an invisible window that covers the entire screen's working area
+            _captureWindow = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                AllowsTransparency = true,
+                Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), // Nearly transparent
+                Topmost = true,
+                ResizeMode = ResizeMode.NoResize,
+                ShowInTaskbar = false,
+                Title = "PNG Capture Area",
+                Width = currentScreen.WorkingArea.Width,
+                Height = currentScreen.WorkingArea.Height,
+                Left = currentScreen.WorkingArea.Left,
+                Top = currentScreen.WorkingArea.Top
+            };
+            
+            // Make it not focusable so it doesn't steal focus
+            _captureWindow.Focusable = false;
+            
+            // Wire up mouse wheel event to be forwarded to our window
+            _captureWindow.MouseWheel += (s, e) =>
+            {
+                // Forward the mouse wheel event to our window
+                Window_MouseWheel(s, e);
+                e.Handled = true;
+            };
+            
+            // Add an event handler to close the capture window when the main window closes
+            _captureWindow.Closed += (s, e) => 
+            {
+                _captureWindow = null;
+            };
+            
+            // Show the window
+            _captureWindow.Show();
+            
+            // Further customize it with Win32 API calls
+            var hwnd = new WindowInteropHelper(_captureWindow).Handle;
+            
+            // Make it a tool window that doesn't appear in Alt+Tab
+            var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+            SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED);
+            
+            // Set it to be slightly more transparent
+            SetLayeredWindowAttributes(hwnd, 0, 1, LWA_ALPHA);
+            
+            // Position it behind our PNG window but still above most other windows
+            SetWindowPos(hwnd, (IntPtr)HWND_BOTTOM, 0, 0, 0, 0, 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
         
         private void TransparentImageWindow_Activated(object sender, EventArgs e)
@@ -257,6 +327,24 @@ namespace PngViewer
                 
                 // Ensure the window stays topmost
                 this.Topmost = true;
+                
+                // When we drag to a new position, we need to update the capture window
+                UpdateCaptureWindowPosition();
+            }
+        }
+        
+        private void UpdateCaptureWindowPosition()
+        {
+            if (_captureWindow != null)
+            {
+                // Find the screen our window is now on
+                var currentScreen = Screen.FromHandle(_windowHandle);
+                
+                // Update the capture window to match the current screen
+                _captureWindow.Width = currentScreen.WorkingArea.Width;
+                _captureWindow.Height = currentScreen.WorkingArea.Height;
+                _captureWindow.Left = currentScreen.WorkingArea.Left;
+                _captureWindow.Top = currentScreen.WorkingArea.Top;
             }
         }
         
@@ -317,8 +405,20 @@ namespace PngViewer
             // Stop the visibility timer
             _visibilityTimer.Stop();
             
+            // Close the capture window
+            CloseCaptureWindow();
+            
             base.OnClosing(e);
             Dispose();
+        }
+        
+        private void CloseCaptureWindow()
+        {
+            if (_captureWindow != null)
+            {
+                _captureWindow.Close();
+                _captureWindow = null;
+            }
         }
         
         public void Dispose()
@@ -336,6 +436,9 @@ namespace PngViewer
             {
                 // Stop the visibility timer
                 _visibilityTimer.Stop();
+                
+                // Close the capture window
+                CloseCaptureWindow();
                 
                 // Cancel any ongoing operations
                 if (_imageLoader.IsBusy)
