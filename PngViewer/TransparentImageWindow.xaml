@@ -17,8 +17,7 @@
         ShowInTaskbar="False"
         BorderThickness="0"
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
-        KeyDown="Window_KeyDown"
-        MouseWheel="Window_MouseWheel">
+        KeyDown="Window_KeyDown">
     
     <!-- No padding, margins, or borders -->
     <Window.Template>
