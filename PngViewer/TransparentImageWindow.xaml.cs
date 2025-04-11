@@ -24,6 +24,12 @@ namespace PngViewer
         private bool _isDragging = false;
         private Point _dragStartPoint;
         
+        // Zoom related constants and fields
+        private const double ZOOM_FACTOR_STEP = 0.1;
+        private const double MIN_ZOOM = 0.1;
+        private const double MAX_ZOOM = 10.0;
+        private double _currentZoom = 1.0;
+        
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
         private const int GWL_EXSTYLE = -20;
@@ -263,6 +269,30 @@ namespace PngViewer
             }
         }
         
+        private void Window_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // Calculate new zoom factor based on wheel direction
+            double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
+            double newZoom = _currentZoom + zoomChange;
+            
+            // Enforce min/max zoom limits
+            newZoom = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, newZoom));
+            
+            // Only update if the zoom actually changed
+            if (Math.Abs(_currentZoom - newZoom) > 0.001)
+            {
+                _currentZoom = newZoom;
+                
+                // Apply the new zoom factor to the ScaleTransform
+                imageScale.ScaleX = _currentZoom;
+                imageScale.ScaleY = _currentZoom;
+                
+                // We intentionally do not resize the window - the transform handles the scaling
+                
+                e.Handled = true;
+            }
+        }
+        
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
             // Close window on Escape or Space
@@ -270,6 +300,18 @@ namespace PngViewer
             {
                 Close();
             }
+            // Reset zoom on 'R' key
+            else if (e.Key == Key.R)
+            {
+                ResetZoom();
+            }
+        }
+        
+        private void ResetZoom()
+        {
+            _currentZoom = 1.0;
+            imageScale.ScaleX = 1.0;
+            imageScale.ScaleY = 1.0;
         }
         
         protected override void OnClosing(CancelEventArgs e)
