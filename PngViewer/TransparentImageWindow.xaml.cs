@@ -15,7 +15,7 @@ namespace PngViewer
     public partial class TransparentImageWindow : Window, IDisposable
     {
         private string _imagePath;
-        private BitmapSource _originalImage;
+        private BitmapImage _originalImage;
         private bool _disposed = false;
         private readonly BackgroundWorker _imageLoader = new BackgroundWorker();
         private readonly DispatcherTimer _visibilityTimer;
@@ -199,16 +199,24 @@ namespace PngViewer
                 return;
             }
             
-            if (e.Result is BitmapSource bitmap)
+            if (e.Result is BitmapImage bitmap)
             {
                 _originalImage = bitmap;
                 
-                // Directly set the source
+                // Set the image source
                 mainImage.Source = _originalImage;
                 
-                // Set window size based on original image size
+                // Set initial window size to match original image
                 Width = _originalImage.PixelWidth;
                 Height = _originalImage.PixelHeight;
+                
+                // Set canvas size to match
+                mainCanvas.Width = Width;
+                mainCanvas.Height = Height;
+                
+                // Position instructions at bottom
+                Canvas.SetLeft(instructionsText, (Width - instructionsText.ActualWidth) / 2);
+                Canvas.SetBottom(instructionsText, 10);
                 
                 // Center on screen
                 CenterWindowOnScreen();
@@ -230,8 +238,8 @@ namespace PngViewer
             _scale += SCALE_STEP;
             if (_scale > MAX_SCALE) _scale = MAX_SCALE;
             
-            // Create resized image
-            CreateResizedImage();
+            // Apply the new scale
+            ApplyScale();
             
             // Show brief feedback
             ShowScaleFeedback();
@@ -245,8 +253,8 @@ namespace PngViewer
             _scale -= SCALE_STEP;
             if (_scale < MIN_SCALE) _scale = MIN_SCALE;
             
-            // Create resized image
-            CreateResizedImage();
+            // Apply the new scale
+            ApplyScale();
             
             // Show brief feedback
             ShowScaleFeedback();
@@ -258,54 +266,50 @@ namespace PngViewer
             instructionsText.Text = $"Scale: {_scale:F1}x";
             instructionsText.Visibility = Visibility.Visible;
             
+            // Position it at the bottom center
+            Canvas.SetLeft(instructionsText, (Width - instructionsText.ActualWidth) / 2);
+            Canvas.SetBottom(instructionsText, 10);
+            
             // Restart the timer to hide the feedback after a delay
             _instructionsTimer.Stop();
             _instructionsTimer.Start();
         }
         
-        private void CreateResizedImage()
+        private void ApplyScale()
         {
             try
             {
-                // Calculate exact dimensions with scaling
-                int newWidth = (int)Math.Round(_originalImage.PixelWidth * _scale);
-                int newHeight = (int)Math.Round(_originalImage.PixelHeight * _scale);
+                // Calculate the new size based on scale
+                double newWidth = _originalImage.PixelWidth * _scale;
+                double newHeight = _originalImage.PixelHeight * _scale;
                 
-                // The center point before resize
+                // Get the center of the window before scaling
                 double centerX = Left + (Width / 2);
                 double centerY = Top + (Height / 2);
                 
-                // Create a new bitmap at the exact scaled size
-                RenderTargetBitmap resized = new RenderTargetBitmap(
-                    newWidth, newHeight, 
-                    96, 96, // DPI 
-                    PixelFormats.Pbgra32);
-                
-                // Create a DrawingVisual to scale the original image
-                DrawingVisual drawingVisual = new DrawingVisual();
-                using (DrawingContext context = drawingVisual.RenderOpen())
-                {
-                    context.DrawImage(_originalImage, 
-                        new Rect(0, 0, newWidth, newHeight));
-                }
-                
-                // Render the scaled image
-                resized.Render(drawingVisual);
-                
-                // Apply the resized image to display
-                mainImage.Source = resized;
-                
-                // Update window size
+                // Update the window size and image size
                 Width = newWidth;
                 Height = newHeight;
                 
-                // Recenter the window
+                // Update canvas size
+                mainCanvas.Width = newWidth;
+                mainCanvas.Height = newHeight;
+                
+                // Keep the same source image - we'll let WPF do the scaling
+                mainImage.Width = newWidth;
+                mainImage.Height = newHeight;
+                
+                // Recenter window
                 Left = centerX - (Width / 2);
                 Top = centerY - (Height / 2);
+                
+                // Update the instructions position
+                Canvas.SetLeft(instructionsText, (Width - instructionsText.ActualWidth) / 2);
+                Canvas.SetBottom(instructionsText, 10);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error scaling image: {ex.Message}", "Error", 
+                MessageBox.Show($"Error applying scale: {ex.Message}", "Error", 
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -436,7 +440,7 @@ namespace PngViewer
             _disposed = true;
         }
         
-        private void ReleaseImage(ref BitmapSource image)
+        private void ReleaseImage(ref BitmapImage image)
         {
             if (image != null)
             {
