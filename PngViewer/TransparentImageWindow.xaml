@@ -17,7 +17,8 @@
         ShowInTaskbar="False"
         BorderThickness="0"
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
-        KeyDown="Window_KeyDown">
+        KeyDown="Window_KeyDown"
+        MouseWheel="Window_MouseWheel">
     
     <!-- No padding, margins, or borders -->
     <Window.Template>
@@ -32,5 +33,10 @@
            Margin="0"
            RenderOptions.BitmapScalingMode="HighQuality"
            SnapsToDevicePixels="True" 
-           UseLayoutRounding="True"/>
+           UseLayoutRounding="True"
+           RenderTransformOrigin="0.5,0.5">
+        <Image.RenderTransform>
+            <ScaleTransform x:Name="imageScale" ScaleX="1" ScaleY="1" />
+        </Image.RenderTransform>
+    </Image>
 </Window>
