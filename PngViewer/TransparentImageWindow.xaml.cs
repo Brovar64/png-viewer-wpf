@@ -180,27 +180,7 @@ namespace PngViewer
             _fullscreenWindow.IsHitTestVisible = true; // We need this to capture mouse wheel events
             
             // Wire up mouse wheel event to be forwarded to our window
-            _fullscreenWindow.MouseWheel += (s, e) =>
-            {
-                // Forward the mouse wheel event to our image's scale transform
-                double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
-                double newZoom = _currentZoom + zoomChange;
-                
-                // Enforce min/max zoom limits
-                newZoom = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, newZoom));
-                
-                // Only update if the zoom actually changed
-                if (Math.Abs(_currentZoom - newZoom) > 0.001)
-                {
-                    _currentZoom = newZoom;
-                    
-                    // Apply the new zoom factor to the ScaleTransform
-                    imageScale.ScaleX = _currentZoom;
-                    imageScale.ScaleY = _currentZoom;
-                    
-                    e.Handled = true;
-                }
-            };
+            _fullscreenWindow.MouseWheel += HandleMouseWheel;
             
             // Close the fullscreen window when this window closes
             this.Closed += (s, e) => 
@@ -402,6 +382,28 @@ namespace PngViewer
             {
                 _isDragging = false;
                 this.ReleaseMouseCapture();
+            }
+        }
+        
+        private void HandleMouseWheel(object sender, WinInput.MouseWheelEventArgs e)
+        {
+            // Calculate new zoom factor based on wheel direction
+            double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
+            double newZoom = _currentZoom + zoomChange;
+            
+            // Enforce min/max zoom limits
+            newZoom = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, newZoom));
+            
+            // Only update if the zoom actually changed
+            if (Math.Abs(_currentZoom - newZoom) > 0.001)
+            {
+                _currentZoom = newZoom;
+                
+                // Apply the new zoom factor to the ScaleTransform
+                imageScale.ScaleX = _currentZoom;
+                imageScale.ScaleY = _currentZoom;
+                
+                e.Handled = true;
             }
         }
         
