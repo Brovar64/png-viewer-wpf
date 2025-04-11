@@ -13,6 +13,11 @@ A high-performance, memory-efficient PNG viewer application built with C# and WP
   - 90° rotation (left/right)
   - Precise cropping functionality (Shift+Drag to select area)
   - Save modified images
+- Floating transparent PNG view with:
+  - Mouse wheel zoom from **anywhere on screen**
+  - Fixed fullscreen transparent input capture
+  - Freely movable PNG with precise positioning
+  - Press 'R' key to reset zoom
 - Responsive interface that works well with large image collections
 - Live memory usage monitoring
 - Proper resource cleanup
@@ -46,10 +51,12 @@ This application includes several optimizations to minimize memory usage:
 
 ### Keyboard and Mouse Controls
 
-- **Ctrl + Mouse Wheel**: Zoom in/out
-- **Drag**: Pan the image when zoomed in
+- **Ctrl + Mouse Wheel**: Zoom in/out in the standard viewer
+- **Mouse Wheel** (anywhere on screen): Zoom in/out in the floating transparent viewer
+- **Drag**: Pan the image when zoomed in or reposition the floating PNG
 - **Shift + Drag**: Select area for cropping
-- **Escape**: Cancel crop selection
+- **Escape or Space**: Close the floating transparent viewer
+- **R key**: Reset zoom in the floating transparent viewer
 
 ## License
 

@@ -26,11 +26,16 @@
         </ControlTemplate>
     </Window.Template>
     
-    <!-- The only element is the image itself - no other UI elements -->
+    <!-- The image element -->
     <Image x:Name="mainImage" 
            Stretch="None" 
            Margin="0"
            RenderOptions.BitmapScalingMode="HighQuality"
            SnapsToDevicePixels="True" 
-           UseLayoutRounding="True"/>
+           UseLayoutRounding="True"
+           RenderTransformOrigin="0.5,0.5">
+        <Image.RenderTransform>
+            <ScaleTransform x:Name="imageScale" ScaleX="1" ScaleY="1" />
+        </Image.RenderTransform>
+    </Image>
 </Window>
