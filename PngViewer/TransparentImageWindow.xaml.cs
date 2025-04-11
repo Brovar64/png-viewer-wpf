@@ -207,14 +207,18 @@ namespace PngViewer
                 _originalImage = bitmap;
                 mainImage.Source = _originalImage;
                 
-                // Initialize RenderTransform
+                // Set initial width and height based on original image dimensions
+                Width = _originalImage.PixelWidth;
+                Height = _originalImage.PixelHeight;
+                
+                // Set initial scale transform
                 ScaleTransform transform = new ScaleTransform(1, 1);
                 mainImage.RenderTransform = transform;
                 
                 // Center on screen
                 CenterWindowOnScreen();
                 
-                // Make sure it's visible and on top after resizing
+                // Make sure it's visible and on top
                 if (_windowHandle != IntPtr.Zero)
                 {
                     SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
@@ -268,9 +272,28 @@ namespace PngViewer
         {
             try
             {
-                // Apply the scale transform directly to the image
+                // Apply the scale transform to the image
                 ScaleTransform transform = new ScaleTransform(_scale, _scale);
                 mainImage.RenderTransform = transform;
+                
+                // Calculate new window dimensions based on the scaled image
+                double newWidth = _originalImage.PixelWidth * _scale;
+                double newHeight = _originalImage.PixelHeight * _scale;
+                
+                // Get the current center point of the window
+                double centerX = Left + (Width / 2);
+                double centerY = Top + (Height / 2);
+                
+                // Update window dimensions
+                Width = newWidth;
+                Height = newHeight;
+                
+                // Recenter the window at the same position
+                Left = centerX - (Width / 2);
+                Top = centerY - (Height / 2);
+                
+                // Force layout update
+                UpdateLayout();
             }
             catch (Exception ex)
             {
@@ -284,11 +307,8 @@ namespace PngViewer
             double screenWidth = SystemParameters.PrimaryScreenWidth;
             double screenHeight = SystemParameters.PrimaryScreenHeight;
             
-            if (_originalImage != null)
-            {
-                Left = (screenWidth - _originalImage.PixelWidth) / 2;
-                Top = (screenHeight - _originalImage.PixelHeight) / 2;
-            }
+            Left = (screenWidth - Width) / 2;
+            Top = (screenHeight - Height) / 2;
         }
         
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
