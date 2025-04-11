@@ -9,6 +9,9 @@ using System.Windows.Interop;
 using System.Runtime.InteropServices;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Forms;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace PngViewer
 {
@@ -29,6 +32,11 @@ namespace PngViewer
         private const double MIN_ZOOM = 0.1;
         private const double MAX_ZOOM = 10.0;
         private double _currentZoom = 1.0;
+        
+        // Bounding box related fields
+        private bool _isFullScreenBoundingBox = false;
+        private List<ScreenInfo> _screens = new List<ScreenInfo>();
+        private Window _activeScreenBorderWindow = null;
         
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
@@ -94,11 +102,58 @@ namespace PngViewer
             this.MouseMove += Window_MouseMove;
             this.MouseLeftButtonUp += Window_MouseLeftButtonUp;
             
+            // Collect screen information
+            CollectScreenInfo();
+            
             // Make sure it stays on top
             this.Topmost = true;
             
             // Start loading
             _imageLoader.RunWorkerAsync(imagePath);
+        }
+
+        private void CollectScreenInfo()
+        {
+            _screens.Clear();
+            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+            {
+                var wpfRect = new Rect(
+                    screen.Bounds.X, 
+                    screen.Bounds.Y, 
+                    screen.Bounds.Width, 
+                    screen.Bounds.Height);
+                
+                _screens.Add(new ScreenInfo
+                {
+                    Screen = screen,
+                    Bounds = wpfRect,
+                    IsPrimary = screen.Primary
+                });
+            }
+        }
+
+        private ScreenInfo GetScreenContainingPoint(Point point)
+        {
+            foreach (var screen in _screens)
+            {
+                if (screen.Bounds.Contains(point))
+                {
+                    return screen;
+                }
+            }
+            
+            // Default to primary screen if no match found
+            return _screens.FirstOrDefault(s => s.IsPrimary) ?? _screens.FirstOrDefault();
+        }
+
+        private ScreenInfo GetCurrentScreen()
+        {
+            // Get center point of the window
+            Point windowCenter = new Point(
+                Left + Width / 2, 
+                Top + Height / 2);
+                
+            return GetScreenContainingPoint(windowCenter);
         }
 
         private void TransparentImageWindow_Loaded(object sender, RoutedEventArgs e)
@@ -181,8 +236,8 @@ namespace PngViewer
         {
             if (e.Result is Exception ex)
             {
-                MessageBox.Show($"Error loading image: {ex.Message}", "Error", 
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"Error loading image: {ex.Message}", "Error", 
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 Close();
                 return;
             }
@@ -200,7 +255,7 @@ namespace PngViewer
                 Width = _originalImage.PixelWidth;
                 Height = _originalImage.PixelHeight;
                 
-                // Set the border size to match the image dimensions
+                // Set the border size to match the image dimensions (for non-fullscreen mode)
                 boundingBoxBorder.Width = _originalImage.PixelWidth;
                 boundingBoxBorder.Height = _originalImage.PixelHeight;
                 
@@ -228,7 +283,7 @@ namespace PngViewer
             }
         }
         
-        private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void Window_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             // Start the custom dragging operation
             _isDragging = true;
@@ -241,7 +296,7 @@ namespace PngViewer
             e.Handled = true;
         }
         
-        private void Window_MouseMove(object sender, MouseEventArgs e)
+        private void Window_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
             if (_isDragging)
             {
@@ -259,12 +314,18 @@ namespace PngViewer
                 Left = newLeft;
                 Top = newTop;
                 
+                // If we have a full screen border, update it based on new window position
+                if (_isFullScreenBoundingBox && Math.Abs(_currentZoom - 1.0) > 0.001)
+                {
+                    UpdateFullScreenBoundingBox();
+                }
+                
                 // Ensure the window stays topmost
                 this.Topmost = true;
             }
         }
         
-        private void Window_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        private void Window_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (_isDragging)
             {
@@ -273,7 +334,7 @@ namespace PngViewer
             }
         }
         
-        private void Window_MouseWheel(object sender, MouseWheelEventArgs e)
+        private void Window_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
         {
             // Calculate new zoom factor based on wheel direction
             double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
@@ -303,15 +364,113 @@ namespace PngViewer
             // Show the bounding box only when zoomed in or out from 100%
             if (Math.Abs(_currentZoom - 1.0) > 0.001)
             {
-                boundingBoxBorder.Visibility = Visibility.Visible;
+                if (_isFullScreenBoundingBox)
+                {
+                    // Update full screen bounding box
+                    UpdateFullScreenBoundingBox();
+                    boundingBoxBorder.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    // Show regular bounding box
+                    boundingBoxBorder.Visibility = Visibility.Visible;
+                    CloseFullScreenBoundingBox();
+                }
             }
             else
             {
+                // At 1.0 zoom, hide all bounding boxes
                 boundingBoxBorder.Visibility = Visibility.Collapsed;
+                CloseFullScreenBoundingBox();
             }
         }
         
-        private void Window_KeyDown(object sender, KeyEventArgs e)
+        private void UpdateFullScreenBoundingBox()
+        {
+            // First, ensure we have the latest screen info
+            CollectScreenInfo();
+            
+            // Get the current screen we're on
+            var currentScreen = GetCurrentScreen();
+            
+            // Close existing border window if it exists
+            CloseFullScreenBoundingBox();
+            
+            // Create a new border window for the current screen
+            _activeScreenBorderWindow = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                AllowsTransparency = true,
+                Background = Brushes.Transparent,
+                Topmost = true,
+                ResizeMode = ResizeMode.NoResize,
+                ShowInTaskbar = false,
+                Title = "Fullscreen Bounding Box",
+                Width = currentScreen.Bounds.Width,
+                Height = currentScreen.Bounds.Height,
+                Left = currentScreen.Bounds.Left,
+                Top = currentScreen.Bounds.Top
+            };
+            
+            // Add a red border to the window
+            var border = new System.Windows.Controls.Border
+            {
+                BorderBrush = Brushes.Red,
+                BorderThickness = new Thickness(2),
+                Background = Brushes.Transparent
+            };
+            
+            _activeScreenBorderWindow.Content = border;
+            
+            // Add an event handler to close the border window when the main window closes
+            _activeScreenBorderWindow.Closed += (s, e) => 
+            {
+                _activeScreenBorderWindow = null;
+            };
+            
+            // Show the window
+            _activeScreenBorderWindow.Show();
+            
+            // Ensure it's not focusable to prevent stealing focus
+            var hwnd = new WindowInteropHelper(_activeScreenBorderWindow).Handle;
+            var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+            SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
+        }
+        
+        private void CloseFullScreenBoundingBox()
+        {
+            if (_activeScreenBorderWindow != null)
+            {
+                _activeScreenBorderWindow.Close();
+                _activeScreenBorderWindow = null;
+            }
+        }
+        
+        private void ToggleBoundingBoxMode()
+        {
+            _isFullScreenBoundingBox = !_isFullScreenBoundingBox;
+            
+            if (_isFullScreenBoundingBox)
+            {
+                System.Windows.MessageBox.Show(
+                    "Switched to fullscreen bounding box mode.\nThe entire screen will be outlined with a red border.", 
+                    "Bounding Box Mode", 
+                    System.Windows.MessageBoxButton.OK, 
+                    System.Windows.MessageBoxImage.Information);
+            }
+            else
+            {
+                System.Windows.MessageBox.Show(
+                    "Switched to regular bounding box mode.\nOnly the original image bounds will be outlined.", 
+                    "Bounding Box Mode", 
+                    System.Windows.MessageBoxButton.OK, 
+                    System.Windows.MessageBoxImage.Information);
+            }
+            
+            UpdateBoundingBoxVisibility();
+        }
+        
+        private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             // Close window on Escape or Space
             if (e.Key == Key.Escape || e.Key == Key.Space)
@@ -328,17 +487,38 @@ namespace PngViewer
             {
                 ToggleBoundingBox();
             }
+            // Toggle fullscreen bounding box mode on 'F' key
+            else if (e.Key == Key.F)
+            {
+                ToggleBoundingBoxMode();
+            }
         }
         
         private void ToggleBoundingBox()
         {
-            if (boundingBoxBorder.Visibility == Visibility.Visible)
+            if (_isFullScreenBoundingBox)
             {
-                boundingBoxBorder.Visibility = Visibility.Collapsed;
+                // In fullscreen mode, toggle the fullscreen border
+                if (_activeScreenBorderWindow != null)
+                {
+                    CloseFullScreenBoundingBox();
+                }
+                else if (Math.Abs(_currentZoom - 1.0) > 0.001)
+                {
+                    UpdateFullScreenBoundingBox();
+                }
             }
             else
             {
-                boundingBoxBorder.Visibility = Visibility.Visible;
+                // In regular mode, toggle the normal border
+                if (boundingBoxBorder.Visibility == Visibility.Visible)
+                {
+                    boundingBoxBorder.Visibility = Visibility.Collapsed;
+                }
+                else if (Math.Abs(_currentZoom - 1.0) > 0.001)
+                {
+                    boundingBoxBorder.Visibility = Visibility.Visible;
+                }
             }
         }
         
@@ -348,14 +528,18 @@ namespace PngViewer
             imageScale.ScaleX = 1.0;
             imageScale.ScaleY = 1.0;
             
-            // Hide the bounding box at default zoom
+            // Hide all bounding boxes at default zoom
             boundingBoxBorder.Visibility = Visibility.Collapsed;
+            CloseFullScreenBoundingBox();
         }
         
         protected override void OnClosing(CancelEventArgs e)
         {
             // Stop the visibility timer
             _visibilityTimer.Stop();
+            
+            // Close any fullscreen bounding box
+            CloseFullScreenBoundingBox();
             
             base.OnClosing(e);
             Dispose();
@@ -376,6 +560,9 @@ namespace PngViewer
             {
                 // Stop the visibility timer
                 _visibilityTimer.Stop();
+                
+                // Close any fullscreen bounding box
+                CloseFullScreenBoundingBox();
                 
                 // Cancel any ongoing operations
                 if (_imageLoader.IsBusy)
@@ -407,5 +594,12 @@ namespace PngViewer
                 image = null;
             }
         }
+    }
+    
+    public class ScreenInfo
+    {
+        public System.Windows.Forms.Screen Screen { get; set; }
+        public Rect Bounds { get; set; }
+        public bool IsPrimary { get; set; }
     }
 }
