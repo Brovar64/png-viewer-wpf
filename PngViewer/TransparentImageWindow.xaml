@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         Title="Transparent PNG" 
         Height="Auto" Width="Auto"
-        SizeToContent="Manual"
+        SizeToContent="WidthAndHeight"
         WindowStartupLocation="CenterScreen"
         Background="Transparent"
         AllowsTransparency="True"
@@ -20,11 +20,10 @@
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
         KeyDown="Window_KeyDown">
     
-    <!-- No padding, margins, or borders -->
     <Grid>
-        <!-- Just use a basic image with regular Width/Height -->
+        <!-- Simple image with no extra settings -->
         <Image x:Name="mainImage" 
-               Stretch="Uniform" 
+               Stretch="None"
                RenderOptions.BitmapScalingMode="HighQuality"/>
                
         <!-- Text instructions overlay that appears briefly -->
