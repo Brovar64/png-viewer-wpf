@@ -307,7 +307,7 @@ namespace PngViewer
             e.Handled = true;
         }
         
-        private void Window_MouseMove(object sender, MouseEventArgs e)
+        private void Window_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
             if (_isDragging)
             {
@@ -357,7 +357,7 @@ namespace PngViewer
             }
         }
         
-        private void Window_MouseWheel(object sender, MouseWheelEventArgs e)
+        private void Window_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
         {
             // Calculate new zoom factor based on wheel direction
             double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
@@ -379,7 +379,7 @@ namespace PngViewer
             }
         }
         
-        private void Window_KeyDown(object sender, KeyEventArgs e)
+        private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             // Close window on Escape or Space
             if (e.Key == Key.Escape || e.Key == Key.Space)
@@ -470,5 +470,13 @@ namespace PngViewer
                 image = null;
             }
         }
+    }
+    
+    public class ScreenInfo
+    {
+        public System.Windows.Forms.Screen Screen { get; set; }
+        public Rect Bounds { get; set; }
+        public Rect WorkingArea { get; set; }
+        public bool IsPrimary { get; set; }
     }
 }
