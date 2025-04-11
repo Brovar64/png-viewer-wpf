@@ -125,9 +125,6 @@ namespace PngViewer
             var exStyle = GetWindowLong(_windowHandle, GWL_EXSTYLE);
             SetWindowLong(_windowHandle, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
             
-            // NOTE: AllowsTransparency is already set in XAML and cannot be changed here
-            // The Background is also set to Transparent in XAML
-            
             // Ensure window is visible and topmost
             SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
@@ -207,13 +204,8 @@ namespace PngViewer
                 _originalImage = bitmap;
                 mainImage.Source = _originalImage;
                 
-                // Set initial width and height based on original image dimensions
-                Width = _originalImage.PixelWidth;
-                Height = _originalImage.PixelHeight;
-                
-                // Set initial scale transform
-                ScaleTransform transform = new ScaleTransform(1, 1);
-                mainImage.RenderTransform = transform;
+                // Set initial size to match the image exactly
+                ResizeWindowToScale();
                 
                 // Center on screen
                 CenterWindowOnScreen();
@@ -236,7 +228,7 @@ namespace PngViewer
             if (_scale > MAX_SCALE) _scale = MAX_SCALE;
             
             // Apply the scale
-            ApplyScale();
+            ResizeWindowToScale();
             
             // Show brief feedback
             ShowScaleFeedback();
@@ -251,7 +243,7 @@ namespace PngViewer
             if (_scale < MIN_SCALE) _scale = MIN_SCALE;
             
             // Apply the scale
-            ApplyScale();
+            ResizeWindowToScale();
             
             // Show brief feedback
             ShowScaleFeedback();
@@ -268,32 +260,30 @@ namespace PngViewer
             _instructionsTimer.Start();
         }
         
-        private void ApplyScale()
+        private void ResizeWindowToScale()
         {
             try
             {
-                // Apply the scale transform to the image
-                ScaleTransform transform = new ScaleTransform(_scale, _scale);
-                mainImage.RenderTransform = transform;
+                // Super simple approach - just set everything to exact pixel sizes
+
+                // Calculate new size based on scale
+                int newWidth = (int)(_originalImage.PixelWidth * _scale);
+                int newHeight = (int)(_originalImage.PixelHeight * _scale);
                 
-                // Calculate new window dimensions based on the scaled image
-                double newWidth = _originalImage.PixelWidth * _scale;
-                double newHeight = _originalImage.PixelHeight * _scale;
-                
-                // Get the current center point of the window
+                // Get current center point of window
                 double centerX = Left + (Width / 2);
                 double centerY = Top + (Height / 2);
                 
-                // Update window dimensions
+                // Resize both the image and window
+                mainImage.Width = newWidth;
+                mainImage.Height = newHeight;
+                
                 Width = newWidth;
                 Height = newHeight;
                 
-                // Recenter the window at the same position
+                // Reposition to maintain center point
                 Left = centerX - (Width / 2);
                 Top = centerY - (Height / 2);
-                
-                // Force layout update
-                UpdateLayout();
             }
             catch (Exception ex)
             {
