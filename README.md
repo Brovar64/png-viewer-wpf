@@ -15,12 +15,12 @@ A high-performance, memory-efficient PNG viewer application built with C# and WP
   - Save modified images
 - Floating transparent PNG view with:
   - Direct mouse wheel zoom in/out
-  - Smart bounding box modes (standard or fullscreen)
+  - Fullscreen red bounding box that appears when zoomed
   - Multi-monitor support for fullscreen bounding box
+  - Automatic screen detection when moving between monitors
   - Drag to reposition
   - Press 'R' key to reset zoom
-  - Press 'B' key to toggle bounding box
-  - Press 'F' key to switch between standard/fullscreen bounding box modes
+  - Press 'B' key to toggle bounding box visibility
 - Responsive interface that works well with large image collections
 - Live memory usage monitoring
 - Proper resource cleanup
@@ -60,17 +60,17 @@ This application includes several optimizations to minimize memory usage:
 - **Shift + Drag**: Select area for cropping
 - **Escape or Space**: Close the floating transparent viewer
 - **R key**: Reset zoom in the floating transparent viewer
-- **B key**: Toggle the bounding box in the floating transparent viewer
-- **F key**: Switch between standard and fullscreen bounding box modes
+- **B key**: Toggle the fullscreen bounding box visibility
 
-### Bounding Box Modes
+### Fullscreen Bounding Box
 
-The floating transparent PNG viewer supports two bounding box modes:
+When using the floating transparent PNG viewer and zooming in/out, a red border automatically appears around the entire screen. This helps maintain context and orientation when examining image details.
 
-1. **Standard Mode**: Shows a red outline around the original image dimensions
-2. **Fullscreen Mode**: Shows a red outline around the entire screen
-
-When moving the floating PNG between monitors, the fullscreen bounding box will automatically switch to the current monitor, maintaining proper context in multi-monitor setups.
+The fullscreen border:
+- Automatically appears when zooming (not displayed at 1.0x zoom)
+- Automatically follows the PNG when moved between monitors
+- Can be toggled on/off with the 'B' key
+- Works with any monitor setup (single, dual, or multiple)
 
 ## License
 
