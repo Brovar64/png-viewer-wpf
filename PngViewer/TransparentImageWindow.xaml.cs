@@ -15,14 +15,21 @@ namespace PngViewer
     public partial class TransparentImageWindow : Window, IDisposable
     {
         private string _imagePath;
-        private BitmapSource _originalImage;
+        private BitmapImage _originalImage;
         private bool _disposed = false;
         private readonly BackgroundWorker _imageLoader = new BackgroundWorker();
         private readonly DispatcherTimer _visibilityTimer;
+        private readonly DispatcherTimer _instructionsTimer;
         
         // Dragging related fields
         private bool _isDragging = false;
         private Point _dragStartPoint;
+        
+        // Zoom related fields
+        private double _scale = 1.0;
+        private const double SCALE_STEP = 0.2;
+        private const double MIN_SCALE = 0.1;
+        private const double MAX_SCALE = 10.0;
         
         // Win32 constants for window styles
         private const int GWL_STYLE = -16;
@@ -79,6 +86,17 @@ namespace PngViewer
             };
             _visibilityTimer.Tick += VisibilityTimer_Tick;
             
+            // Setup instructions timer to hide the instructions after a few seconds
+            _instructionsTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(5)
+            };
+            _instructionsTimer.Tick += (s, e) =>
+            {
+                instructionsText.Visibility = Visibility.Collapsed;
+                _instructionsTimer.Stop();
+            };
+            
             // Apply additional settings after window is loaded
             this.Loaded += TransparentImageWindow_Loaded;
             this.Activated += TransparentImageWindow_Activated;
@@ -87,6 +105,9 @@ namespace PngViewer
             // Register mouse events for custom dragging
             this.MouseMove += Window_MouseMove;
             this.MouseLeftButtonUp += Window_MouseLeftButtonUp;
+            
+            // Ensure image scaling is correct
+            mainImage.Stretch = Stretch.Uniform;
             
             // Make sure it stays on top
             this.Topmost = true;
@@ -107,15 +128,15 @@ namespace PngViewer
             var exStyle = GetWindowLong(_windowHandle, GWL_EXSTYLE);
             SetWindowLong(_windowHandle, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
             
-            // NOTE: AllowsTransparency is already set in XAML and cannot be changed here
-            // The Background is also set to Transparent in XAML
-            
             // Ensure window is visible and topmost
             SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             
             // Start visibility timer
             _visibilityTimer.Start();
+            
+            // Start instructions timer
+            _instructionsTimer.Start();
         }
         
         private void TransparentImageWindow_Activated(object sender, EventArgs e)
@@ -181,23 +202,32 @@ namespace PngViewer
                 return;
             }
             
-            if (e.Result is BitmapSource bitmap)
+            if (e.Result is BitmapImage bitmap)
             {
                 _originalImage = bitmap;
+                
+                // Set the image source
                 mainImage.Source = _originalImage;
                 
-                // Auto-size the window to fit the image exactly
-                mainImage.Width = _originalImage.PixelWidth;
-                mainImage.Height = _originalImage.PixelHeight;
+                // Make sure Stretch is set correctly
+                mainImage.Stretch = Stretch.Uniform;
                 
-                // Update window size to exactly match the image
+                // Set initial window size to match original image
                 Width = _originalImage.PixelWidth;
                 Height = _originalImage.PixelHeight;
                 
-                // Ensure window is centered on screen
+                // Set canvas size to match
+                mainCanvas.Width = Width;
+                mainCanvas.Height = Height;
+                
+                // Position instructions at bottom
+                Canvas.SetLeft(instructionsText, (Width - instructionsText.ActualWidth) / 2);
+                Canvas.SetBottom(instructionsText, 10);
+                
+                // Center on screen
                 CenterWindowOnScreen();
                 
-                // Make sure it's visible and on top after resizing
+                // Make sure it's visible and on top
                 if (_windowHandle != IntPtr.Zero)
                 {
                     SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
@@ -206,16 +236,97 @@ namespace PngViewer
             }
         }
         
+        private void ZoomIn()
+        {
+            if (_originalImage == null) return;
+            
+            // Increase scale
+            _scale += SCALE_STEP;
+            if (_scale > MAX_SCALE) _scale = MAX_SCALE;
+            
+            // Apply the new scale
+            ApplyScale();
+            
+            // Show brief feedback
+            ShowScaleFeedback();
+        }
+        
+        private void ZoomOut()
+        {
+            if (_originalImage == null) return;
+            
+            // Decrease scale
+            _scale -= SCALE_STEP;
+            if (_scale < MIN_SCALE) _scale = MIN_SCALE;
+            
+            // Apply the new scale
+            ApplyScale();
+            
+            // Show brief feedback
+            ShowScaleFeedback();
+        }
+        
+        private void ShowScaleFeedback()
+        {
+            // Update the instructions text to show current scale
+            instructionsText.Text = $"Scale: {_scale:F1}x";
+            instructionsText.Visibility = Visibility.Visible;
+            
+            // Position it at the bottom center
+            Canvas.SetLeft(instructionsText, (Width - instructionsText.ActualWidth) / 2);
+            Canvas.SetBottom(instructionsText, 10);
+            
+            // Restart the timer to hide the feedback after a delay
+            _instructionsTimer.Stop();
+            _instructionsTimer.Start();
+        }
+        
+        private void ApplyScale()
+        {
+            try
+            {
+                // Calculate the new size based on scale
+                double newWidth = _originalImage.PixelWidth * _scale;
+                double newHeight = _originalImage.PixelHeight * _scale;
+                
+                // Get the center of the window before scaling
+                double centerX = Left + (Width / 2);
+                double centerY = Top + (Height / 2);
+                
+                // Update the window size and image size
+                Width = newWidth;
+                Height = newHeight;
+                
+                // Update canvas size
+                mainCanvas.Width = newWidth;
+                mainCanvas.Height = newHeight;
+                
+                // Keep the same source image - using Stretch.Uniform
+                mainImage.Width = newWidth;
+                mainImage.Height = newHeight;
+                
+                // Recenter window
+                Left = centerX - (Width / 2);
+                Top = centerY - (Height / 2);
+                
+                // Update the instructions position
+                Canvas.SetLeft(instructionsText, (Width - instructionsText.ActualWidth) / 2);
+                Canvas.SetBottom(instructionsText, 10);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error applying scale: {ex.Message}", "Error", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        
         private void CenterWindowOnScreen()
         {
             double screenWidth = SystemParameters.PrimaryScreenWidth;
             double screenHeight = SystemParameters.PrimaryScreenHeight;
             
-            if (_originalImage != null)
-            {
-                Left = (screenWidth - _originalImage.PixelWidth) / 2;
-                Top = (screenHeight - _originalImage.PixelHeight) / 2;
-            }
+            Left = (screenWidth - Width) / 2;
+            Top = (screenHeight - Height) / 2;
         }
         
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -265,17 +376,32 @@ namespace PngViewer
         
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
-            // Close window on Escape or Space
-            if (e.Key == Key.Escape || e.Key == Key.Space)
+            // Handle keyboard shortcuts
+            if (e.Key == Key.OemPlus || e.Key == Key.Add)
             {
+                // Plus key - zoom in
+                ZoomIn();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.OemMinus || e.Key == Key.Subtract)
+            {
+                // Minus key - zoom out
+                ZoomOut();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape || e.Key == Key.Space)
+            {
+                // Close window on Escape or Space
                 Close();
+                e.Handled = true;
             }
         }
         
         protected override void OnClosing(CancelEventArgs e)
         {
-            // Stop the visibility timer
+            // Stop the timers
             _visibilityTimer.Stop();
+            _instructionsTimer.Stop();
             
             base.OnClosing(e);
             Dispose();
@@ -294,8 +420,9 @@ namespace PngViewer
                 
             if (disposing)
             {
-                // Stop the visibility timer
+                // Stop the timers
                 _visibilityTimer.Stop();
+                _instructionsTimer.Stop();
                 
                 // Cancel any ongoing operations
                 if (_imageLoader.IsBusy)
@@ -319,7 +446,7 @@ namespace PngViewer
             _disposed = true;
         }
         
-        private void ReleaseImage(ref BitmapSource image)
+        private void ReleaseImage(ref BitmapImage image)
         {
             if (image != null)
             {

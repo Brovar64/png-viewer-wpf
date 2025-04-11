@@ -5,9 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:PngViewer"
         mc:Ignorable="d"
-        Title="Transparent PNG" 
-        Height="Auto" Width="Auto"
-        SizeToContent="WidthAndHeight"
+        Title="Transparent PNG"
+        SizeToContent="Manual"
         WindowStartupLocation="CenterScreen"
         Background="Transparent"
         AllowsTransparency="True"
@@ -15,22 +14,25 @@
         Topmost="True"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
-        BorderThickness="0"
+        BorderThickness="1"
+        BorderBrush="Red"
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
         KeyDown="Window_KeyDown">
     
-    <!-- No padding, margins, or borders -->
-    <Window.Template>
-        <ControlTemplate TargetType="{x:Type Window}">
-            <ContentPresenter Margin="0" Content="{TemplateBinding Content}" />
-        </ControlTemplate>
-    </Window.Template>
-    
-    <!-- The only element is the image itself - no other UI elements -->
-    <Image x:Name="mainImage" 
-           Stretch="None" 
-           Margin="0"
-           RenderOptions.BitmapScalingMode="HighQuality"
-           SnapsToDevicePixels="True" 
-           UseLayoutRounding="True"/>
+    <Canvas x:Name="mainCanvas" Background="Transparent">
+        <Image x:Name="mainImage" 
+               Canvas.Left="0" Canvas.Top="0"
+               RenderOptions.BitmapScalingMode="HighQuality" 
+               Stretch="None">
+        </Image>
+               
+        <TextBlock x:Name="instructionsText"
+                   Canvas.Left="20" Canvas.Bottom="20"
+                   Padding="5"
+                   Background="#80000000"
+                   Foreground="White"
+                   FontWeight="Bold"
+                   Text="Press + to zoom in, - to zoom out"
+                   Visibility="Visible"/>
+    </Canvas>
 </Window>
