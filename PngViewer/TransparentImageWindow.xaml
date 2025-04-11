@@ -5,9 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:PngViewer"
         mc:Ignorable="d"
-        Title="Transparent PNG" 
-        Height="Auto" Width="Auto"
-        SizeToContent="WidthAndHeight"
+        Title="Transparent PNG"
+        SizeToContent="Manual"
         WindowStartupLocation="CenterScreen"
         Background="Transparent"
         AllowsTransparency="True"
@@ -20,22 +19,20 @@
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
         KeyDown="Window_KeyDown">
     
-    <Grid>
-        <!-- Simple image with no extra settings -->
+    <Canvas x:Name="mainCanvas" Background="Transparent">
         <Image x:Name="mainImage" 
-               Stretch="None"
-               RenderOptions.BitmapScalingMode="HighQuality"/>
+               Canvas.Left="0" Canvas.Top="0"
+               RenderOptions.BitmapScalingMode="HighQuality" 
+               Stretch="None">
+        </Image>
                
-        <!-- Text instructions overlay that appears briefly -->
         <TextBlock x:Name="instructionsText"
-                  HorizontalAlignment="Center"
-                  VerticalAlignment="Bottom"
-                  Margin="0,0,0,10"
-                  Padding="5"
-                  Background="#80000000"
-                  Foreground="White"
-                  FontWeight="Bold"
-                  Text="Press + to zoom in, - to zoom out"
-                  Visibility="Visible"/>
-    </Grid>
+                   Canvas.Left="20" Canvas.Bottom="20"
+                   Padding="5"
+                   Background="#80000000"
+                   Foreground="White"
+                   FontWeight="Bold"
+                   Text="Press + to zoom in, - to zoom out"
+                   Visibility="Visible"/>
+    </Canvas>
 </Window>
