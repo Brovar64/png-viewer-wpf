@@ -1,24 +1,25 @@
 using System;
 using System.IO;
 using System.Windows;
-using System.Windows.Input;
-using System.Windows.Media.Imaging;
-using System.Threading.Tasks;
-using System.ComponentModel;
-using System.Windows.Interop;
-using System.Runtime.InteropServices;
-using System.Windows.Media;
 using System.Windows.Threading;
-using System.Windows.Forms;
+using System.ComponentModel;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
+
+// Use aliases to avoid ambiguity
+using WinForms = System.Windows.Forms;
+using WinInput = System.Windows.Input;
+using WinInterop = System.Windows.Interop;
+using WinMedia = System.Windows.Media;
+using WinImaging = System.Windows.Media.Imaging;
 
 namespace PngViewer
 {
     public partial class TransparentImageWindow : Window, IDisposable
     {
         private string _imagePath;
-        private BitmapSource _originalImage;
+        private WinImaging.BitmapSource _originalImage;
         private bool _disposed = false;
         private readonly BackgroundWorker _imageLoader = new BackgroundWorker();
         private readonly DispatcherTimer _visibilityTimer;
@@ -117,7 +118,7 @@ namespace PngViewer
 
         private void TransparentImageWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            _windowHandle = new WindowInteropHelper(this).Handle;
+            _windowHandle = new WinInterop.WindowInteropHelper(this).Handle;
             
             // Remove system menu, caption and borders
             var style = GetWindowLong(_windowHandle, GWL_STYLE);
@@ -141,14 +142,14 @@ namespace PngViewer
         private void CreateCaptureWindow()
         {
             // Find the screen our window is on
-            var currentScreen = Screen.FromHandle(_windowHandle);
+            var currentScreen = WinForms.Screen.FromHandle(_windowHandle);
             
             // Create an invisible window that covers the entire screen's working area
             _captureWindow = new Window
             {
                 WindowStyle = WindowStyle.None,
                 AllowsTransparency = true,
-                Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), // Nearly transparent
+                Background = new WinMedia.SolidColorBrush(WinMedia.Color.FromArgb(1, 0, 0, 0)), // Nearly transparent
                 Topmost = true,
                 ResizeMode = ResizeMode.NoResize,
                 ShowInTaskbar = false,
@@ -180,7 +181,7 @@ namespace PngViewer
             _captureWindow.Show();
             
             // Further customize it with Win32 API calls
-            var hwnd = new WindowInteropHelper(_captureWindow).Handle;
+            var hwnd = new WinInterop.WindowInteropHelper(_captureWindow).Handle;
             
             // Make it a tool window that doesn't appear in Alt+Tab
             var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
@@ -231,11 +232,11 @@ namespace PngViewer
             string filePath = e.Argument as string;
             try
             {
-                var bitmap = new BitmapImage();
+                var bitmap = new WinImaging.BitmapImage();
                 bitmap.BeginInit();
                 bitmap.UriSource = new Uri(filePath);
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile | BitmapCreateOptions.PreservePixelFormat;
+                bitmap.CacheOption = WinImaging.BitmapCacheOption.OnLoad;
+                bitmap.CreateOptions = WinImaging.BitmapCreateOptions.IgnoreColorProfile | WinImaging.BitmapCreateOptions.PreservePixelFormat;
                 bitmap.EndInit();
                 bitmap.Freeze();
                 
@@ -257,7 +258,7 @@ namespace PngViewer
                 return;
             }
             
-            if (e.Result is BitmapSource bitmap)
+            if (e.Result is WinImaging.BitmapSource bitmap)
             {
                 _originalImage = bitmap;
                 mainImage.Source = _originalImage;
@@ -294,7 +295,7 @@ namespace PngViewer
             }
         }
         
-        private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void Window_MouseLeftButtonDown(object sender, WinInput.MouseButtonEventArgs e)
         {
             // Start the custom dragging operation
             _isDragging = true;
@@ -307,7 +308,7 @@ namespace PngViewer
             e.Handled = true;
         }
         
-        private void Window_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        private void Window_MouseMove(object sender, WinInput.MouseEventArgs e)
         {
             if (_isDragging)
             {
@@ -338,7 +339,7 @@ namespace PngViewer
             if (_captureWindow != null)
             {
                 // Find the screen our window is now on
-                var currentScreen = Screen.FromHandle(_windowHandle);
+                var currentScreen = WinForms.Screen.FromHandle(_windowHandle);
                 
                 // Update the capture window to match the current screen
                 _captureWindow.Width = currentScreen.WorkingArea.Width;
@@ -348,7 +349,7 @@ namespace PngViewer
             }
         }
         
-        private void Window_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        private void Window_MouseLeftButtonUp(object sender, WinInput.MouseButtonEventArgs e)
         {
             if (_isDragging)
             {
@@ -357,7 +358,7 @@ namespace PngViewer
             }
         }
         
-        private void Window_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        private void Window_MouseWheel(object sender, WinInput.MouseWheelEventArgs e)
         {
             // Calculate new zoom factor based on wheel direction
             double zoomChange = e.Delta > 0 ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP;
@@ -379,15 +380,15 @@ namespace PngViewer
             }
         }
         
-        private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        private void Window_KeyDown(object sender, WinInput.KeyEventArgs e)
         {
             // Close window on Escape or Space
-            if (e.Key == Key.Escape || e.Key == Key.Space)
+            if (e.Key == WinInput.Key.Escape || e.Key == WinInput.Key.Space)
             {
                 Close();
             }
             // Reset zoom on 'R' key
-            else if (e.Key == Key.R)
+            else if (e.Key == WinInput.Key.R)
             {
                 ResetZoom();
             }
@@ -462,7 +463,7 @@ namespace PngViewer
             _disposed = true;
         }
         
-        private void ReleaseImage(ref BitmapSource image)
+        private void ReleaseImage(ref WinImaging.BitmapSource image)
         {
             if (image != null)
             {
@@ -474,7 +475,7 @@ namespace PngViewer
     
     public class ScreenInfo
     {
-        public System.Windows.Forms.Screen Screen { get; set; }
+        public WinForms.Screen Screen { get; set; }
         public Rect Bounds { get; set; }
         public Rect WorkingArea { get; set; }
         public bool IsPrimary { get; set; }
