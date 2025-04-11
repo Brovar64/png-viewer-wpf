@@ -200,6 +200,10 @@ namespace PngViewer
                 Width = _originalImage.PixelWidth;
                 Height = _originalImage.PixelHeight;
                 
+                // Set the border size to match the image dimensions
+                boundingBoxBorder.Width = _originalImage.PixelWidth;
+                boundingBoxBorder.Height = _originalImage.PixelHeight;
+                
                 // Ensure window is centered on screen
                 CenterWindowOnScreen();
                 
@@ -287,9 +291,23 @@ namespace PngViewer
                 imageScale.ScaleX = _currentZoom;
                 imageScale.ScaleY = _currentZoom;
                 
-                // We intentionally do not resize the window - the transform handles the scaling
+                // Show the bounding box if zoomed
+                UpdateBoundingBoxVisibility();
                 
                 e.Handled = true;
+            }
+        }
+        
+        private void UpdateBoundingBoxVisibility()
+        {
+            // Show the bounding box only when zoomed in or out from 100%
+            if (Math.Abs(_currentZoom - 1.0) > 0.001)
+            {
+                boundingBoxBorder.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                boundingBoxBorder.Visibility = Visibility.Collapsed;
             }
         }
         
@@ -305,6 +323,23 @@ namespace PngViewer
             {
                 ResetZoom();
             }
+            // Toggle bounding box on 'B' key
+            else if (e.Key == Key.B)
+            {
+                ToggleBoundingBox();
+            }
+        }
+        
+        private void ToggleBoundingBox()
+        {
+            if (boundingBoxBorder.Visibility == Visibility.Visible)
+            {
+                boundingBoxBorder.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                boundingBoxBorder.Visibility = Visibility.Visible;
+            }
         }
         
         private void ResetZoom()
@@ -312,6 +347,9 @@ namespace PngViewer
             _currentZoom = 1.0;
             imageScale.ScaleX = 1.0;
             imageScale.ScaleY = 1.0;
+            
+            // Hide the bounding box at default zoom
+            boundingBoxBorder.Visibility = Visibility.Collapsed;
         }
         
         protected override void OnClosing(CancelEventArgs e)
