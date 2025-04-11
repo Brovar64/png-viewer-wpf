@@ -117,7 +117,14 @@ namespace PngViewer
             _screens.Clear();
             foreach (var screen in System.Windows.Forms.Screen.AllScreens)
             {
-                var wpfRect = new Rect(
+                // Use the WorkingArea instead of Bounds to respect taskbar
+                var wpfWorkArea = new Rect(
+                    screen.WorkingArea.X, 
+                    screen.WorkingArea.Y, 
+                    screen.WorkingArea.Width, 
+                    screen.WorkingArea.Height);
+                
+                var wpfBounds = new Rect(
                     screen.Bounds.X, 
                     screen.Bounds.Y, 
                     screen.Bounds.Width, 
@@ -126,7 +133,8 @@ namespace PngViewer
                 _screens.Add(new ScreenInfo
                 {
                     Screen = screen,
-                    Bounds = wpfRect,
+                    WorkingArea = wpfWorkArea,
+                    Bounds = wpfBounds,
                     IsPrimary = screen.Primary
                 });
             }
@@ -264,9 +272,6 @@ namespace PngViewer
                     SetWindowPos(_windowHandle, (IntPtr)HWND_TOPMOST, 0, 0, 0, 0, 
                         SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
                 }
-                
-                // Show fullscreen border immediately
-                UpdateFullscreenBoundingBox();
             }
         }
         
@@ -394,10 +399,11 @@ namespace PngViewer
                 ResizeMode = ResizeMode.NoResize,
                 ShowInTaskbar = false,
                 Title = "Fullscreen Bounding Box",
-                Width = currentScreen.Bounds.Width,
-                Height = currentScreen.Bounds.Height,
-                Left = currentScreen.Bounds.Left,
-                Top = currentScreen.Bounds.Top
+                // Use WorkingArea instead of Bounds to respect taskbar
+                Width = currentScreen.WorkingArea.Width,
+                Height = currentScreen.WorkingArea.Height,
+                Left = currentScreen.WorkingArea.Left,
+                Top = currentScreen.WorkingArea.Top
             };
             
             // Add a red border to the window
@@ -419,10 +425,14 @@ namespace PngViewer
             // Show the window
             _fullscreenBorderWindow.Show();
             
-            // Ensure it's not focusable to prevent stealing focus
+            // Make it not show in taskbar or Alt+Tab
             var hwnd = new WindowInteropHelper(_fullscreenBorderWindow).Handle;
             var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
             SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
+            
+            // Lower its Z-order a bit to avoid interfering with the taskbar
+            SetWindowPos(hwnd, (IntPtr)(HWND_TOPMOST - 1), 0, 0, 0, 0, 
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
         
         private void CloseFullscreenBoundingBox()
@@ -546,6 +556,7 @@ namespace PngViewer
     {
         public System.Windows.Forms.Screen Screen { get; set; }
         public Rect Bounds { get; set; }
+        public Rect WorkingArea { get; set; }
         public bool IsPrimary { get; set; }
     }
 }
