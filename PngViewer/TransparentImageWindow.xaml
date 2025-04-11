@@ -15,7 +15,8 @@
         Topmost="True"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
-        BorderThickness="0"
+        BorderThickness="1"
+        BorderBrush="Red"
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
         KeyDown="Window_KeyDown">
     
