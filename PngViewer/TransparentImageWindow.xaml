@@ -27,26 +27,16 @@
         </ControlTemplate>
     </Window.Template>
     
-    <Grid>
-        <!-- Border to show the outline when zoomed -->
-        <Border x:Name="boundingBoxBorder" 
-                BorderBrush="Red" 
-                BorderThickness="1.5" 
-                Visibility="Collapsed" 
-                HorizontalAlignment="Center" 
-                VerticalAlignment="Center" />
-                
-        <!-- The image element -->
-        <Image x:Name="mainImage" 
-               Stretch="None" 
-               Margin="0"
-               RenderOptions.BitmapScalingMode="HighQuality"
-               SnapsToDevicePixels="True" 
-               UseLayoutRounding="True"
-               RenderTransformOrigin="0.5,0.5">
-            <Image.RenderTransform>
-                <ScaleTransform x:Name="imageScale" ScaleX="1" ScaleY="1" />
-            </Image.RenderTransform>
-        </Image>
-    </Grid>
+    <!-- The image element -->
+    <Image x:Name="mainImage" 
+           Stretch="None" 
+           Margin="0"
+           RenderOptions.BitmapScalingMode="HighQuality"
+           SnapsToDevicePixels="True" 
+           UseLayoutRounding="True"
+           RenderTransformOrigin="0.5,0.5">
+        <Image.RenderTransform>
+            <ScaleTransform x:Name="imageScale" ScaleX="1" ScaleY="1" />
+        </Image.RenderTransform>
+    </Image>
 </Window>
