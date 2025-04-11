@@ -15,12 +15,9 @@ A high-performance, memory-efficient PNG viewer application built with C# and WP
   - Save modified images
 - Floating transparent PNG view with:
   - Direct mouse wheel zoom in/out
-  - Fullscreen red bounding box that appears when zoomed
-  - Multi-monitor support for fullscreen bounding box
-  - Automatic screen detection when moving between monitors
+  - Smooth scaling transforms for high-quality zoom
   - Drag to reposition
   - Press 'R' key to reset zoom
-  - Press 'B' key to toggle bounding box visibility
 - Responsive interface that works well with large image collections
 - Live memory usage monitoring
 - Proper resource cleanup
@@ -60,17 +57,6 @@ This application includes several optimizations to minimize memory usage:
 - **Shift + Drag**: Select area for cropping
 - **Escape or Space**: Close the floating transparent viewer
 - **R key**: Reset zoom in the floating transparent viewer
-- **B key**: Toggle the fullscreen bounding box visibility
-
-### Fullscreen Bounding Box
-
-When using the floating transparent PNG viewer and zooming in/out, a red border automatically appears around the entire screen. This helps maintain context and orientation when examining image details.
-
-The fullscreen border:
-- Automatically appears when zooming (not displayed at 1.0x zoom)
-- Automatically follows the PNG when moved between monitors
-- Can be toggled on/off with the 'B' key
-- Works with any monitor setup (single, dual, or multiple)
 
 ## License
 
