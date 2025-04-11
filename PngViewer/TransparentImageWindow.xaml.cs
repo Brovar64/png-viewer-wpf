@@ -203,16 +203,12 @@ namespace PngViewer
             {
                 _originalImage = bitmap;
                 
-                // Create a transformed bitmap at the same size as the original
-                TransformedBitmap transformedBitmap = new TransformedBitmap(
-                    _originalImage,
-                    new ScaleTransform(1, 1));
+                // Directly set the source
+                mainImage.Source = _originalImage;
                 
-                // Apply the transformed bitmap to the image
-                mainImage.Source = transformedBitmap;
-                
-                // Set window size to match image exactly (using SizeToContent="WidthAndHeight")
-                AdjustWindowSize();
+                // Set window size based on original image size
+                Width = _originalImage.PixelWidth;
+                Height = _originalImage.PixelHeight;
                 
                 // Center on screen
                 CenterWindowOnScreen();
@@ -234,8 +230,8 @@ namespace PngViewer
             _scale += SCALE_STEP;
             if (_scale > MAX_SCALE) _scale = MAX_SCALE;
             
-            // Apply the scale
-            ApplyZoom();
+            // Create resized image
+            CreateResizedImage();
             
             // Show brief feedback
             ShowScaleFeedback();
@@ -249,8 +245,8 @@ namespace PngViewer
             _scale -= SCALE_STEP;
             if (_scale < MIN_SCALE) _scale = MIN_SCALE;
             
-            // Apply the scale
-            ApplyZoom();
+            // Create resized image
+            CreateResizedImage();
             
             // Show brief feedback
             ShowScaleFeedback();
@@ -267,47 +263,50 @@ namespace PngViewer
             _instructionsTimer.Start();
         }
         
-        private void ApplyZoom()
+        private void CreateResizedImage()
         {
             try
             {
-                // Create a scaled bitmap that perfectly preserves aspect ratio
-                TransformedBitmap transformedBitmap = new TransformedBitmap(
-                    _originalImage,
-                    new ScaleTransform(_scale, _scale));
+                // Calculate exact dimensions with scaling
+                int newWidth = (int)Math.Round(_originalImage.PixelWidth * _scale);
+                int newHeight = (int)Math.Round(_originalImage.PixelHeight * _scale);
                 
-                // Apply the transformed bitmap
-                mainImage.Source = transformedBitmap;
-                
-                // Adjust window to accommodate the new image size
-                AdjustWindowSize();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error applying zoom: {ex.Message}", "Error", 
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-        
-        private void AdjustWindowSize()
-        {
-            if (mainImage.Source is BitmapSource source)
-            {
-                // Get the center point before resizing
+                // The center point before resize
                 double centerX = Left + (Width / 2);
                 double centerY = Top + (Height / 2);
                 
-                // Update the window size to match the image size exactly
-                SizeToContent = SizeToContent.Manual;
-                Width = source.PixelWidth;
-                Height = source.PixelHeight;
+                // Create a new bitmap at the exact scaled size
+                RenderTargetBitmap resized = new RenderTargetBitmap(
+                    newWidth, newHeight, 
+                    96, 96, // DPI 
+                    PixelFormats.Pbgra32);
+                
+                // Create a DrawingVisual to scale the original image
+                DrawingVisual drawingVisual = new DrawingVisual();
+                using (DrawingContext context = drawingVisual.RenderOpen())
+                {
+                    context.DrawImage(_originalImage, 
+                        new Rect(0, 0, newWidth, newHeight));
+                }
+                
+                // Render the scaled image
+                resized.Render(drawingVisual);
+                
+                // Apply the resized image to display
+                mainImage.Source = resized;
+                
+                // Update window size
+                Width = newWidth;
+                Height = newHeight;
                 
                 // Recenter the window
                 Left = centerX - (Width / 2);
                 Top = centerY - (Height / 2);
-                
-                // Force layout update
-                UpdateLayout();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error scaling image: {ex.Message}", "Error", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         
